@@ -12,7 +12,13 @@ class ConfigManager:
             config_path: Path to configuration file. If None, uses default config.
         """
         self.config = configparser.ConfigParser()
-        self.converted_values = {}
+        self.converted_values = {
+            'test_parameters': {},
+            'portfolio_constraints': {},
+            'classical_solver': {},
+            'multithreaded_solver': {},  # Added this initialization
+            'performance_metrics': {}
+        }
         
         # Load default configuration
         default_path = os.path.join(
@@ -27,16 +33,9 @@ class ConfigManager:
         
         # Convert types for numerical values
         self._convert_types()
-    
+
     def _convert_types(self):
         """Convert string values to appropriate types."""
-        self.converted_values = {
-            'test_parameters': {},
-            'portfolio_constraints': {},
-            'classical_solver': {},
-            'performance_metrics': {}
-        }
-        
         # Test parameters
         for key in ['n_assets', 'n_periods', 'n_simulations']:
             if self.config.has_option('test_parameters', key):
@@ -53,16 +52,35 @@ class ConfigManager:
                 'portfolio_constraints', 'min_stocks_held'
             )
         
-        # Solver parameters
+        # Classical solver parameters
+        solver_float_keys = ['initial_penalty', 'penalty_multiplier', 'perturbation_size']
+        
         if self.config.has_option('classical_solver', 'max_iterations'):
             self.converted_values['classical_solver']['max_iterations'] = self.config.getint(
                 'classical_solver', 'max_iterations'
             )
         
-        float_keys = ['initial_penalty', 'penalty_multiplier', 'perturbation_size']
-        for key in float_keys:
+        for key in solver_float_keys:
             if self.config.has_option('classical_solver', key):
                 self.converted_values['classical_solver'][key] = self.config.getfloat('classical_solver', key)
+        
+        # Multithreaded solver parameters (only if section exists)
+        if 'multithreaded_solver' in self.config:
+            if self.config.has_option('multithreaded_solver', 'max_iterations'):
+                self.converted_values['multithreaded_solver']['max_iterations'] = self.config.getint(
+                    'multithreaded_solver', 'max_iterations'
+                )
+            
+            for key in solver_float_keys:
+                if self.config.has_option('multithreaded_solver', key):
+                    self.converted_values['multithreaded_solver'][key] = self.config.getfloat(
+                        'multithreaded_solver', key
+                    )
+            
+            if self.config.has_option('multithreaded_solver', 'n_threads'):
+                self.converted_values['multithreaded_solver']['n_threads'] = self.config.getint(
+                    'multithreaded_solver', 'n_threads'
+                )
         
         # Performance metrics
         if 'performance_metrics' in self.config:

@@ -1,10 +1,22 @@
 """Classical optimization solver using sequential relaxation."""
 import numpy as np
 import time
-from scipy.optimize import minimize
+import logging
+import warnings
+from contextlib import contextmanager
+from typing import Optional, Dict, Any, List, Tuple
+from scipy.optimize import minimize, OptimizeResult
 from .base import BaseSolver
 from ..core.problem import PortfolioOptProblem
 from ..core.result import PortfolioOptResult
+
+@contextmanager
+def suppress_slsqp_warnings():
+    """Context manager to suppress SLSQP bounds warnings."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=RuntimeWarning,
+                              message='Values in x were outside bounds during a minimize step, clipping to bounds')
+        yield
 
 class ClassicalSolver(BaseSolver):
     """Classical portfolio optimization solver using sequential relaxation."""
@@ -15,14 +27,74 @@ class ClassicalSolver(BaseSolver):
         self.initial_penalty = kwargs.get('initial_penalty', 100.0)
         self.penalty_multiplier = kwargs.get('penalty_multiplier', 10.0)
         self.perturbation_size = kwargs.get('perturbation_size', 0.01)
+        self.logger = logging.getLogger(__name__)
+        self.warnings: Dict[str, Any] = {}
 
-    def _create_base_constraints(self, problem):
-        """Create base constraints."""
+    def _run_single_optimization(self, 
+                               problem: PortfolioOptProblem,
+                               target_weights: np.ndarray,
+                               init_weights: np.ndarray,
+                               prev_weights: np.ndarray,
+                               turnover_limit: float,
+                               bounds: List[Tuple[float, float]],
+                               base_constraints: List[Dict]) -> OptimizeResult:
+        """Run a single optimization trial."""
+        def objective(x):
+            return np.sum((x - target_weights) ** 2)
+        
+        constraints = base_constraints.copy()
+        constraints.append({
+            'type': 'ineq',
+            'fun': lambda x: turnover_limit - np.sum(np.abs(x - prev_weights))
+        })
+        
+        with suppress_slsqp_warnings():
+            result = minimize(
+                objective,
+                init_weights,
+                method='SLSQP',
+                bounds=bounds,
+                constraints=constraints,
+                options={'maxiter': 1000, 'ftol': 1e-9}
+            )
+        
+        return result
+
+    def _find_minimum_variance(self, problem: PortfolioOptProblem, 
+                             bounds: List[Tuple[float, float]], 
+                             base_constraints: List[Dict],
+                             prev_weights: np.ndarray) -> Optional[OptimizeResult]:
+        """Find the minimum variance portfolio without turnover constraint."""
+        with suppress_slsqp_warnings():
+            result = minimize(
+                lambda x: x.T @ problem.cov_matrix @ x,
+                prev_weights,
+                method='SLSQP',
+                bounds=bounds,
+                constraints=base_constraints,
+                options={'maxiter': 1000, 'ftol': 1e-8}
+            )
+        
+        if not result.success:
+            self.warnings['min_var'] = "Failed to find minimum variance portfolio"
+            return None
+            
+        return result
+
+    def _create_base_constraints(self, problem: PortfolioOptProblem) -> List[Dict]:
+        """Create base constraints for the optimization problem.
+        
+        Args:
+            problem: The portfolio optimization problem instance
+            
+        Returns:
+            List of constraint dictionaries for scipy.optimize.minimize
+        """
         constraints = [
             {'type': 'eq', 'fun': lambda x: np.sum(x) - 1.0}  # Sum to 1
         ]
 
-        # Sector constraints
+        # Sector constraints if sector map is provided
         if 'sector_map' in problem.constraints:
             sector_map = problem.constraints['sector_map']
             max_sector_weight = problem.constraints['max_sector_weight']
@@ -36,86 +108,121 @@ class ClassicalSolver(BaseSolver):
 
         return constraints
 
-    def solve(self, problem: PortfolioOptProblem) -> PortfolioOptResult:
-        """Solve using sequential relaxation approach."""
-        start_time = time.time()
+    def _perturb_weights(self, weights: np.ndarray, alpha: float = 0.0) -> np.ndarray:
+        """Generate perturbed weights for new optimization trial.
         
+        Args:
+            weights: Current weights to perturb
+            alpha: Relaxation factor
+            
+        Returns:
+            Perturbed weights that sum to 1 and respect bounds
+        """
+        noise = np.random.normal(0, self.perturbation_size * (1 - alpha), 
+                               size=len(weights))
+        perturbed = weights + noise
+        perturbed = np.clip(perturbed, 0, 1)  # Ensure non-negative and <= 1
+        return perturbed / np.sum(perturbed)  # Normalize to sum to 1
+
+    def _process_weights(self, weights: np.ndarray, min_weight: float) -> np.ndarray:
+        """Process optimization weights to ensure they meet minimum weight constraint.
+        
+        Args:
+            weights: Raw optimization weights
+            min_weight: Minimum allowed weight
+            
+        Returns:
+            Processed weights that sum to 1 and meet minimum weight constraint
+        """
+        weights = weights.copy()
+        weights[weights < min_weight] = 0.0
+        return weights / np.sum(weights)
+
+    def _calculate_objective(self, weights: np.ndarray, 
+                           problem: PortfolioOptProblem) -> float:
+        """Calculate the objective value (portfolio variance) for given weights.
+        
+        Args:
+            weights: Portfolio weights
+            problem: Portfolio optimization problem
+            
+        Returns:
+            Portfolio variance
+        """
+        return weights.T @ problem.cov_matrix @ weights
+
+    def _create_fallback_result(self, weights: np.ndarray,
+                              problem: PortfolioOptProblem,
+                              start_time: float) -> PortfolioOptResult:
+        """Create a fallback result when optimization fails.
+        
+        Args:
+            weights: Fallback weights to use
+            problem: Portfolio optimization problem
+            start_time: Start time of optimization
+            
+        Returns:
+            PortfolioOptResult with fallback solution
+        """
+        return PortfolioOptResult(
+            weights=weights,
+            objective_value=self._calculate_objective(weights, problem),
+            solve_time=time.time() - start_time,
+            feasible=False
+        )
+
+    def solve(self, problem: PortfolioOptProblem) -> PortfolioOptResult:
+        """Solve the portfolio optimization problem.
+        
+        Args:
+            problem: Portfolio optimization problem instance
+            
+        Returns:
+            PortfolioOptResult containing the solution
+        """
+        start_time = time.time()
+        self.warnings.clear()
+        
+        # Get problem parameters
         prev_weights = problem.constraints.get('prev_weights')
         turnover_limit = problem.constraints.get('turnover_limit')
         min_weight = problem.constraints.get('min_weight', 0.0)
         max_weight = problem.constraints.get('max_weight', 1.0)
 
-        # Initial bounds and constraints
+        # Setup optimization constraints
         bounds = [(0, max_weight) for _ in range(problem.n_assets)]
         base_constraints = self._create_base_constraints(problem)
 
+        # Stage 1: Find minimum variance portfolio
+        min_var_result = self._find_minimum_variance(
+            problem, bounds, base_constraints, prev_weights
+        )
+        if min_var_result is None:
+            return self._create_fallback_result(prev_weights, problem, start_time)
+
+        min_var_weights = min_var_result.x
         best_result = None
         best_turnover = float('inf')
         best_weights = None
-
-        # Stage 1: Find minimum variance portfolio without turnover constraint
-        print("\nStage 1: Finding minimum variance portfolio...")
-        result1 = minimize(
-            lambda x: x.T @ problem.cov_matrix @ x,
-            prev_weights,
-            method='SLSQP',
-            bounds=bounds,
-            constraints=base_constraints,
-            options={'maxiter': 1000, 'ftol': 1e-8}
-        )
-
-        if result1.success:
-            min_var_weights = result1.x.copy()
-            min_var_turnover = np.sum(np.abs(min_var_weights - prev_weights))
-            print(f"Minimum variance turnover: {min_var_turnover:.4f}")
+        current_weights = prev_weights.copy()
 
         # Stage 2: Sequential relaxation
-        print("\nStage 2: Sequential relaxation...")
-        current_weights = prev_weights.copy()
-        relaxation_factors = np.linspace(0, 1, self.max_iterations)
-
-        for i, alpha in enumerate(relaxation_factors):
-            print(f"\nIteration {i+1}/{len(relaxation_factors)} (alpha={alpha:.3f})")
-            
-            # Target weights for this iteration
+        for alpha in np.linspace(0, 1, self.max_iterations):
+            self.logger.debug(f"Relaxation step: alpha = {alpha:.3f}")
             target_weights = alpha * min_var_weights + (1 - alpha) * prev_weights
-
-            # Create the tracking error objective
-            def objective(x):
-                return np.sum((x - target_weights) ** 2)
 
             # Try multiple initial points
             for trial in range(3):
-                # Perturb current solution
-                noise = np.random.normal(0, self.perturbation_size * (1 - alpha), 
-                                      size=len(current_weights))
-                init_weights = current_weights + noise
-                init_weights = np.clip(init_weights, 0, max_weight)
-                init_weights = init_weights / np.sum(init_weights)
-
-                # Add turnover constraint
-                constraints = base_constraints.copy()
-                constraints.append({
-                    'type': 'ineq',
-                    'fun': lambda x: turnover_limit - np.sum(np.abs(x - prev_weights))
-                })
-
-                result = minimize(
-                    objective,
-                    init_weights,
-                    method='SLSQP',
-                    bounds=bounds,
-                    constraints=constraints,
-                    options={'maxiter': 1000, 'ftol': 1e-9}
+                init_weights = self._perturb_weights(current_weights, alpha)
+                result = self._run_single_optimization(
+                    problem, target_weights, init_weights, prev_weights,
+                    turnover_limit, bounds, base_constraints
                 )
 
                 if result.success:
-                    weights = result.x.copy()
-                    weights[weights < min_weight] = 0.0
-                    weights = weights / np.sum(weights)
-                    
+                    weights = self._process_weights(result.x, min_weight)
                     turnover = np.sum(np.abs(weights - prev_weights))
-                    print(f"  Trial {trial + 1}: turnover = {turnover:.4f}")
+                    self.logger.debug(f"Trial {trial + 1}: turnover = {turnover:.4f}")
 
                     if turnover < best_turnover:
                         best_turnover = turnover
@@ -124,37 +231,53 @@ class ClassicalSolver(BaseSolver):
                         current_weights = weights.copy()
 
                         if turnover <= turnover_limit * 1.001:
-                            print(f"\nFound feasible solution!")
-                            solve_time = time.time() - start_time
+                            self.logger.debug("Found feasible solution")
                             return PortfolioOptResult(
                                 weights=weights,
-                                objective_value=weights.T @ problem.cov_matrix @ weights,
-                                solve_time=solve_time,
+                                objective_value=self._calculate_objective(weights, problem),
+                                solve_time=time.time() - start_time,
                                 feasible=True
                             )
 
-        # If we get here, use the best result we found
-        if best_weights is not None:
-            weights = best_weights
-        else:
-            weights = prev_weights.copy()
-            weights[weights < min_weight] = 0.0
-            weights = weights / np.sum(weights)
+        # Return best solution found, even if not fully feasible
+        return self._finalize_result(
+            best_weights if best_weights is not None else prev_weights,
+            problem, prev_weights, turnover_limit, min_weight, start_time
+        )
 
-        # Final turnover check
+    def _finalize_result(self, weights: np.ndarray,
+                        problem: PortfolioOptProblem,
+                        prev_weights: np.ndarray,
+                        turnover_limit: float,
+                        min_weight: float,
+                        start_time: float) -> PortfolioOptResult:
+        """Create final optimization result with proper feasibility checks.
+        
+        Args:
+            weights: Portfolio weights
+            problem: Portfolio optimization problem
+            prev_weights: Previous portfolio weights
+            turnover_limit: Maximum allowed turnover
+            min_weight: Minimum allowed weight
+            start_time: Start time of optimization
+            
+        Returns:
+            PortfolioOptResult with final solution
+        """
+        weights = self._process_weights(weights, min_weight)
         actual_turnover = np.sum(np.abs(weights - prev_weights))
-        if actual_turnover > turnover_limit * 1.001:
-            print(f"Warning: Turnover constraint violated. Actual: {actual_turnover:.4f}, Limit: {turnover_limit:.4f}")
-            feasible = False
-        else:
-            feasible = True
-
-        solve_time = time.time() - start_time
+        feasible = actual_turnover <= turnover_limit * 1.001
+        
+        if not feasible:
+            self.warnings['turnover'] = {
+                'actual': actual_turnover,
+                'limit': turnover_limit
+            }
         
         return PortfolioOptResult(
             weights=weights,
-            objective_value=weights.T @ problem.cov_matrix @ weights,
-            solve_time=solve_time,
+            objective_value=self._calculate_objective(weights, problem),
+            solve_time=time.time() - start_time,
             feasible=feasible
         )
 
