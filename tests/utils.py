@@ -7,11 +7,6 @@ class TestDataHandler:
     """Handles test data generation and validation."""
     
     @staticmethod
-    def generate_sector_map(n_assets: int, n_sectors: int = 11) -> np.ndarray:
-        """Generate random sector assignments for assets."""
-        return np.random.randint(0, n_sectors, size=n_assets)
-    
-    @staticmethod
     def calculate_sector_weights(weights: np.ndarray, sector_map: np.ndarray) -> np.ndarray:
         """Calculate total weight per sector."""
         n_sectors = len(np.unique(sector_map))
@@ -21,10 +16,9 @@ class TestDataHandler:
         return sector_weights
     
     @staticmethod
-    def check_constraints(weights: np.ndarray, 
+    def check_constraints(weights: np.ndarray,
                          params: Dict[str, Any],
-                         sector_map: Optional[np.ndarray] = None,
-                         prev_weights: Optional[np.ndarray] = None) -> Dict[str, bool]:
+                         market_data: Optional['MarketData'] = None) -> Dict[str, bool]:
         """Check if all portfolio constraints are satisfied."""
         constraints_satisfied = {
             'sum_to_one': np.isclose(np.sum(weights), 1.0, rtol=1e-5),
@@ -33,15 +27,26 @@ class TestDataHandler:
             'min_stocks_held': np.sum(weights > 0) >= params['min_stocks_held']
         }
         
-        if sector_map is not None:
-            sector_weights = TestDataHandler.calculate_sector_weights(weights, sector_map)
+        if market_data is not None:
+            # Check sector constraints
+            sector_weights = TestDataHandler.calculate_sector_weights(
+                weights, market_data.sector_map
+            )
             constraints_satisfied['sector_limits'] = np.all(
                 sector_weights <= params['max_sector_weight']
             )
-        
-        if prev_weights is not None:
-            turnover = np.sum(np.abs(weights - prev_weights))
-            constraints_satisfied['turnover'] = turnover <= params['turnover_limit']
+            
+            # Check turnover if previous weights exist
+            if 'prev_weights' in params:
+                turnover = np.sum(np.abs(weights - params['prev_weights']))
+                constraints_satisfied['turnover'] = turnover <= params['turnover_limit']
+            
+            # Check market impact constraints if volumes present
+            if hasattr(market_data, 'volumes'):
+                participation_rates = weights / market_data.volumes.mean(axis=1)
+                constraints_satisfied['market_impact'] = np.all(
+                    participation_rates <= params.get('max_participation', 0.3)
+                )
         
         return constraints_satisfied
 
@@ -50,80 +55,68 @@ class TestMetricsCalculator:
     
     @staticmethod
     def calculate_portfolio_metrics(weights: np.ndarray,
-                                  returns: np.ndarray,
-                                  cov_matrix: np.ndarray) -> Dict[str, float]:
+                                  problem: 'PortfolioOptProblem') -> Dict[str, float]:
         """Calculate portfolio performance metrics."""
-        portfolio_return = np.dot(weights, np.mean(returns, axis=1))
-        portfolio_vol = np.sqrt(weights.T @ cov_matrix @ weights)
-        
-        return {
-            'return': portfolio_return,
-            'volatility': portfolio_vol,
-            'sharpe_ratio': portfolio_return / portfolio_vol if portfolio_vol > 0 else 0,
+        metrics = {
+            'return': np.dot(weights, problem.exp_returns),
+            'volatility': np.sqrt(weights.T @ problem.cov_matrix @ weights),
             'active_positions': np.sum(weights > 0),
             'concentration': np.sum(weights ** 2)  # Herfindahl index
         }
+        
+        # Add factor model metrics if available
+        if problem.factor_returns is not None and problem.factor_exposures is not None:
+            portfolio_exposures = problem.factor_exposures.T @ weights
+            metrics.update({
+                'market_beta': portfolio_exposures[0],  # Assuming first factor is market
+                'factor_r2': TestMetricsCalculator._calculate_factor_r2(
+                    weights, problem
+                )
+            })
+            
+        # Add transaction cost metrics if available
+        if problem.volumes is not None and problem.spreads is not None:
+            metrics.update(
+                TestMetricsCalculator._calculate_cost_metrics(
+                    weights, problem
+                )
+            )
+            
+        return metrics
     
     @staticmethod
-    def aggregate_results(results: List[TestResult]) -> pd.DataFrame:
-        """Aggregate multiple test results into a DataFrame."""
-        rows = []
-        for result in results:
-            row = {
-                'test_name': result.test_name,
-                'duration': (result.end_time - result.start_time).total_seconds(),
-                **result.parameters,
-                **result.metrics,
-                'all_constraints_satisfied': all(result.constraints_satisfied.values())
-            }
-            rows.append(row)
-        return pd.DataFrame(rows)
+    def _calculate_factor_r2(weights: np.ndarray,
+                           problem: 'PortfolioOptProblem') -> float:
+        """Calculate R-squared from factor model."""
+        portfolio_returns = problem.returns.T @ weights
+        factor_returns = problem.factor_returns.T
+        portfolio_exposures = problem.factor_exposures.T @ weights
+        
+        predicted_returns = factor_returns @ portfolio_exposures
+        residual_var = np.var(portfolio_returns - predicted_returns)
+        total_var = np.var(portfolio_returns)
+        
+        return 1 - (residual_var / total_var)
     
     @staticmethod
-    def generate_summary_stats(results: pd.DataFrame) -> Dict[str, Dict[str, float]]:
-        """Generate summary statistics for test results."""
-        numeric_cols = results.select_dtypes(include=[np.number]).columns
-        summary = {}
+    def _calculate_cost_metrics(weights: np.ndarray,
+                              problem: 'PortfolioOptProblem') -> Dict[str, float]:
+        """Calculate transaction cost related metrics."""
+        # Average daily volume participation
+        participation = weights / problem.volumes.mean(axis=1)
         
-        for col in numeric_cols:
-            summary[col] = {
-                'mean': results[col].mean(),
-                'std': results[col].std(),
-                'min': results[col].min(),
-                'max': results[col].max(),
-                'median': results[col].median()
-            }
+        # Spread costs
+        spread_cost = np.sum(weights * problem.spreads.mean(axis=1))
         
-        return summary
-
-def print_test_report(result: TestResult) -> None:
-    """Print formatted test results."""
-    print("\nTest Results:")
-    print("=" * 50)
-    
-    print(f"\nTest: {result.test_name}")
-    print(f"Duration: {(result.end_time - result.start_time).total_seconds():.2f}s")
-    
-    print("\nParameters:")
-    for key, value in result.parameters.items():
-        print(f"  {key}: {value}")
-    
-    print("\nMetrics:")
-    for key, value in result.metrics.items():
-        if isinstance(value, float):
-            print(f"  {key}: {value:.4f}")
-        else:
-            print(f"  {key}: {value}")
-    
-    print("\nConstraints:")
-    for constraint, satisfied in result.constraints_satisfied.items():
-        print(f"  {constraint}: {'✓' if satisfied else '✗'}")
-    
-    if result.additional_info:
-        print("\nAdditional Information:")
-        for key, value in result.additional_info.items():
-            if isinstance(value, list) and len(value) > 10:
-                print(f"  {key}: [array of size {len(value)}]")
-            else:
-                print(f"  {key}: {value}")
+        # Market impact estimate (simple square-root model)
+        impact_cost = np.sum(
+            0.1 * weights * np.sqrt(weights / problem.volumes.mean(axis=1))
+        )
+        
+        return {
+            'max_participation': np.max(participation),
+            'spread_cost': spread_cost,
+            'impact_cost': impact_cost,
+            'total_cost': spread_cost + impact_cost
+        }
 

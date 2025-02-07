@@ -9,7 +9,7 @@ from tqdm import tqdm
 import logging
 
 from ..solvers.base import BaseSolver
-from ..data.generator import TestDataGenerator
+from ..data.generator import EnhancedTestDataGenerator
 from ..utils.logging import setup_logging
 
 class BenchmarkRunner:
@@ -92,7 +92,7 @@ class BenchmarkRunner:
     def _generate_test_problem(self, n_assets: int, n_periods: int,
                              constraints: Optional[Dict] = None) -> 'PortfolioOptProblem':
         """Generate a test problem with given dimensions."""
-        generator = TestDataGenerator()
+        generator = EnhancedTestDataGenerator()
         problem = generator.generate_realistic_problem(
             n_assets=n_assets,
             n_periods=n_periods
