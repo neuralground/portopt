@@ -1,41 +1,23 @@
 import numpy as np
-import pytest
-from portopt.data.generator import TestDataGenerator
 from portopt.solvers.classical import ClassicalSolver
+from portopt.data.generator import TestDataGenerator
+from tests.utils import (
+    TestDataHandler, 
+    TestMetricsCalculator, 
+    TestResult,
+    print_test_report
+)
+from datetime import datetime
 
-def _generate_sector_map(n_assets, n_sectors=11):  # 11 GICS sectors
-    """Generate random sector assignments for assets."""
-    return np.random.randint(0, n_sectors, size=n_assets)
-
-def _calculate_sector_weights(weights, sector_map):
-    """Calculate total weight per sector."""
-    n_sectors = len(np.unique(sector_map))
-    sector_weights = np.zeros(n_sectors)
-    for i in range(n_sectors):
-        sector_weights[i] = np.sum(weights[sector_map == i])
-    return sector_weights
-
-def _check_constraints(weights, params, sector_map=None, prev_weights=None):
-    """Check if all portfolio constraints are satisfied."""
-    constraints_satisfied = {
-        'sum_to_one': np.isclose(np.sum(weights), 1.0, rtol=1e-5),
-        'min_weight': np.all(weights[weights > 0] >= params['min_weight']),
-        'max_weight': np.all(weights <= params['max_weight']),
-        'min_stocks_held': np.sum(weights > 0) >= params['min_stocks_held']
-    }
-    
-    if sector_map is not None:
-        sector_weights = _calculate_sector_weights(weights, sector_map)
-        constraints_satisfied['sector_limits'] = np.all(sector_weights <= params['max_sector_weight'])
-    
-    if prev_weights is not None:
-        turnover = np.sum(np.abs(weights - prev_weights))
-        constraints_satisfied['turnover'] = turnover <= params['turnover_limit']
-    
-    return constraints_satisfied
-
-def test_solver_with_constraints(opt_params):
+def test_solver_with_constraints(opt_params, config_manager):
     """Test solver with realistic portfolio constraints."""
+    # Get performance metrics configuration
+    metrics = config_manager.get_performance_metrics()
+    
+    # Initialize handlers
+    test_handler = TestDataHandler()
+    metrics_calculator = TestMetricsCalculator()
+    
     # Generate test problem with sectors
     generator = TestDataGenerator()
     problem = generator.generate_realistic_problem(
@@ -44,7 +26,7 @@ def test_solver_with_constraints(opt_params):
     )
     
     # Add sector information
-    sector_map = _generate_sector_map(opt_params['n_assets'])
+    sector_map = test_handler.generate_sector_map(opt_params['n_assets'])
     problem.constraints.update({
         'min_weight': opt_params['min_weight'],
         'max_weight': opt_params['max_weight'],
@@ -58,38 +40,62 @@ def test_solver_with_constraints(opt_params):
     problem.constraints['prev_weights'] = prev_weights
     problem.constraints['turnover_limit'] = opt_params['turnover_limit']
     
-    # Solve and check results
-    solver = ClassicalSolver()
+    # Create solver with optimization parameters
+    solver = ClassicalSolver(
+        max_iterations=opt_params['max_iterations'],
+        initial_penalty=opt_params['initial_penalty'],
+        penalty_multiplier=opt_params['penalty_multiplier'],
+        perturbation_size=opt_params['perturbation_size']
+    )
+    
+    # Time and solve
+    start_time = datetime.now()
     result = solver.solve(problem)
+    end_time = datetime.now()
     
     # Check constraints
-    constraints_satisfied = _check_constraints(
+    constraints_satisfied = test_handler.check_constraints(
         result.weights,
         opt_params,
         sector_map,
         prev_weights
     )
     
-    # Print detailed results
-    print("\nOptimization Results:")
-    print(f"Solve Time: {result.solve_time:.4f} seconds")
-    print(f"Objective Value: {result.objective_value:.6f}")
-    print(f"Number of Assets: {opt_params['n_assets']}")
-    print(f"Active Positions: {np.sum(result.weights > 0)}")
-    print("\nConstraint Satisfaction:")
-    for constraint, satisfied in constraints_satisfied.items():
-        print(f"{constraint}: {'✓' if satisfied else '✗'}")
+    # Calculate metrics
+    portfolio_metrics = metrics_calculator.calculate_portfolio_metrics(
+        result.weights,
+        problem.returns,
+        problem.cov_matrix
+    )
     
-    # Portfolio characteristics
-    portfolio_return = np.dot(result.weights, problem.exp_returns)
-    portfolio_vol = np.sqrt(result.weights.T @ problem.cov_matrix @ result.weights)
+    # Create test result object
+    test_result = TestResult(
+        test_name="solver_with_constraints",
+        start_time=start_time,
+        end_time=end_time,
+        parameters=opt_params,
+        metrics={
+            'solve_time': result.solve_time,
+            'objective_value': result.objective_value,
+            **portfolio_metrics
+        },
+        constraints_satisfied=constraints_satisfied,
+        additional_info={
+            'n_active_positions': np.sum(result.weights > 0),
+            'feasible': result.feasible,
+            'sector_weights': test_handler.calculate_sector_weights(
+                result.weights, 
+                sector_map
+            ).tolist() if metrics.get('track_sector_weights', False) else None
+        }
+    )
     
-    print("\nPortfolio Characteristics:")
-    print(f"Expected Return: {portfolio_return:.4%}")
-    print(f"Volatility: {portfolio_vol:.4%}")
-    print(f"Sharpe Ratio: {portfolio_return/portfolio_vol:.4f}")
+    # Print results
+    print_test_report(test_result)
     
     # Assert all constraints are satisfied
     assert all(constraints_satisfied.values()), "Not all constraints satisfied"
     assert result.feasible, "Solution not marked as feasible"
+    
+    return test_result  # Return result for potential aggregation
 
