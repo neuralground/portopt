@@ -1,31 +1,62 @@
+"""Enhanced benchmark runner with comprehensive metrics and analysis."""
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Type, Optional, Any
+from typing import Dict, List, Type, Optional, Any, Tuple
 import time
 from datetime import datetime
 import json
 from pathlib import Path
 from tqdm import tqdm
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from ..solvers.base import BaseSolver
 from ..data.generator import EnhancedTestDataGenerator
 from ..utils.logging import setup_logging
+from ..metrics import EnhancedRiskMetrics
+from ..impact import MarketImpactModel, MarketImpactParams
+from ..visualization.plots import (
+    create_risk_plots,
+    create_impact_plots,
+    create_performance_plots,
+    create_constraint_plots
+)
+from ..core.problem import PortfolioOptProblem
+from ..core.result import PortfolioOptResult
 
 class BenchmarkRunner:
-    """Runs performance benchmarks across different solvers and problem sizes."""
+    """Runs comprehensive performance benchmarks across different solvers and problem sizes."""
 
     def __init__(self, output_dir: str = "benchmark_results"):
+        """Initialize benchmark runner.
+
+        Args:
+            output_dir: Directory for output files
+        """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
-        
+
+        # Create subdirectories for different types of output
+        self.plots_dir = self.output_dir / "plots"
+        self.plots_dir.mkdir(exist_ok=True)
+
         # Set up file handler for warnings
         fh = logging.FileHandler(self.output_dir / 'benchmark_warnings.log')
         fh.setLevel(logging.WARNING)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
+
+    def _save_plots(self, figures: List['Figure'], prefix: str) -> None:
+        """Save generated plots to files."""
+        for i, fig in enumerate(figures):
+            filename = self.plots_dir / f"{prefix}_{i}.png"
+            fig.savefig(filename)
+            plt.close(fig)
 
     def _convert_to_serializable(self, obj: Any) -> Any:
         """Convert numpy types to Python native types for JSON serialization."""
@@ -47,42 +78,76 @@ class BenchmarkRunner:
                                  n_assets_range: List[int],
                                  n_periods_range: List[int],
                                  n_trials: int = 3,
+                                 stress_scenarios: Optional[List[str]] = None,
                                  log_level: str = "INFO") -> pd.DataFrame:
-        """Run benchmarks across different problem sizes."""
+        """Run comprehensive benchmarks across different problem sizes.
+        
+        Args:
+            solver_classes: List of solver classes to benchmark
+            solver_params: Solver parameters
+            n_assets_range: List of number of assets to test
+            n_periods_range: List of number of periods to test
+            n_trials: Number of trials per configuration
+            stress_scenarios: Optional list of stress scenarios to test
+            log_level: Logging level
+        """
         setup_logging(level=log_level)
         results = []
         
         # Calculate total problems
         total_problems = len(solver_classes) * len(n_assets_range) * len(n_periods_range) * n_trials
+        if stress_scenarios:
+            total_problems *= len(stress_scenarios)
         
-        with tqdm(total=total_problems, desc="Running benchmark cases", ncols=80, 
-                 bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt}') as pbar:
-            
+        with tqdm(total=total_problems, desc="Running benchmark cases", ncols=80) as pbar:
             for solver_class in solver_classes:
                 for n_assets in n_assets_range:
                     for n_periods in n_periods_range:
                         for trial in range(n_trials):
-                            # Generate and solve problem
-                            problem = self._generate_test_problem(n_assets, n_periods)
-                            solver = solver_class(**solver_params)
+                            # Generate base problem
+                            problem, market_data = self._generate_test_problem(n_assets, n_periods)
                             
-                            start_time = time.perf_counter()
-                            result = solver.solve(problem)
-                            solve_time = time.perf_counter() - start_time
+                            # Initialize metrics calculators
+                            risk_metrics = EnhancedRiskMetrics(
+                                returns=market_data.returns,
+                                factor_returns=market_data.factor_returns,
+                                factor_exposures=market_data.factor_exposures
+                            )
                             
-                            # Record results
-                            results.append({
-                                'solver_class': solver_class.__name__,
-                                'n_assets': n_assets,
-                                'n_periods': n_periods,
-                                'trial': trial,
-                                'solve_time': solve_time,
-                                'objective_value': result.objective_value,
-                                'feasible': result.feasible,
-                                **self._calculate_metrics(result, problem)
-                            })
+                            impact_model = MarketImpactModel(
+                                volumes=market_data.volumes,
+                                spreads=market_data.spreads,
+                                volatility=np.std(market_data.returns, axis=1)
+                            )
                             
-                            pbar.update(1)
+                            # Test base case and stress scenarios
+                            scenarios = ['base'] + (stress_scenarios or [])
+                            for scenario in scenarios:
+                                # Apply stress scenario if applicable
+                                if scenario != 'base':
+                                    market_data = self._apply_stress_scenario(
+                                        market_data, scenario
+                                    )
+                                    problem = self._update_problem_data(problem, market_data)
+                                
+                                # Solve problem
+                                solver = solver_class(**solver_params)
+                                result = self._solve_and_analyze(
+                                    solver, problem, market_data,
+                                    risk_metrics, impact_model
+                                )
+                                
+                                # Record results
+                                result_data = {
+                                    'solver_class': solver_class.__name__,
+                                    'n_assets': n_assets,
+                                    'n_periods': n_periods,
+                                    'trial': trial,
+                                    'scenario': scenario,
+                                    **result
+                                }
+                                results.append(result_data)
+                                pbar.update(1)
         
         # Create DataFrame and save results
         df = pd.DataFrame(results)
@@ -90,14 +155,14 @@ class BenchmarkRunner:
         return df
 
     def _generate_test_problem(self, n_assets: int, n_periods: int,
-                             constraints: Optional[Dict] = None) -> 'PortfolioOptProblem':
+                             constraints: Optional[Dict] = None) -> Tuple[PortfolioOptProblem, Any]:
         """Generate a test problem with given dimensions."""
         generator = EnhancedTestDataGenerator()
-        problem = generator.generate_realistic_problem(
+        market_data = generator.generate_market_data(
             n_assets=n_assets,
             n_periods=n_periods
         )
-
+        
         if constraints is None:
             constraints = {
                 'min_weight': 0.005,
@@ -107,32 +172,101 @@ class BenchmarkRunner:
                 'turnover_limit': 0.15
             }
 
-        # Add sector map if not provided
-        if 'sector_map' not in constraints:
-            sector_map = np.random.randint(0, 11, size=n_assets)
-            constraints['sector_map'] = sector_map
+        problem = PortfolioOptProblem(
+            returns=market_data.returns,
+            constraints=constraints,
+            volumes=market_data.volumes,
+            spreads=market_data.spreads,
+            factor_returns=market_data.factor_returns,
+            factor_exposures=market_data.factor_exposures,
+            market_caps=market_data.market_caps,
+            classifications=market_data.classifications,
+            asset_classes=market_data.asset_classes,
+            currencies=market_data.currencies,
+            credit_profiles=market_data.credit_profiles
+        )
+        
+        return problem, market_data
 
-        # Add previous weights if not provided
-        if 'prev_weights' not in constraints and 'turnover_limit' in constraints:
-            constraints['prev_weights'] = np.random.dirichlet(np.ones(n_assets))
+    def _solve_and_analyze(self, solver: BaseSolver,
+                          problem: PortfolioOptProblem,
+                          market_data: Any,
+                          risk_metrics: EnhancedRiskMetrics,
+                          impact_model: MarketImpactModel) -> Dict[str, Any]:
+        """Solve problem and calculate comprehensive metrics."""
+        # Solve problem
+        start_time = time.perf_counter()
+        result = solver.solve(problem)
+        solve_time = time.perf_counter() - start_time
 
-        problem.constraints.update(constraints)
-        return problem
+        # Calculate risk metrics
+        risk_results = risk_metrics.calculate_all_metrics(
+            weights=result.weights,
+            benchmark_weights=problem.constraints.get('benchmark_weights'),
+            volumes=market_data.volumes,
+            spreads=market_data.spreads
+        )
 
-    def _calculate_metrics(self, result: 'PortfolioOptResult',
-                         problem: 'PortfolioOptProblem') -> Dict[str, float]:
-        """Calculate portfolio metrics."""
-        weights = result.weights
-        portfolio_return = np.dot(weights, np.mean(problem.returns, axis=1))
-        portfolio_vol = np.sqrt(weights.T @ problem.cov_matrix @ weights)
+        # Calculate market impact
+        impact_results = impact_model.estimate_total_costs(
+            weights=result.weights,
+            prev_weights=problem.constraints.get('prev_weights')
+        )
 
-        return {
-            'return': float(portfolio_return),
-            'volatility': float(portfolio_vol),
-            'sharpe_ratio': float(portfolio_return / portfolio_vol if portfolio_vol > 0 else 0),
-            'active_positions': int(np.sum(weights > 0)),
-            'concentration': float(np.sum(weights ** 2))
+        # Generate plots
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Risk plots
+        risk_plots = create_risk_plots(
+            risk_results,
+            factor_exposures=problem.factor_exposures,
+            benchmark_comparison=problem.constraints.get('benchmark_weights')
+        )
+        self._save_plots(risk_plots, f"{timestamp}_risk")
+
+        # Impact plots
+        impact_plots = create_impact_plots(
+            impact_model,
+            result.weights,
+            prev_weights=problem.constraints.get('prev_weights')
+        )
+        self._save_plots(impact_plots, f"{timestamp}_impact")
+
+        # Performance plots
+        perf_plots = create_performance_plots(
+            problem.returns,
+            result.weights,
+            benchmark_returns=None  # Add benchmark returns if available
+        )
+        self._save_plots(perf_plots, f"{timestamp}_performance")
+
+        # Calculate portfolio characteristics
+        portfolio_metrics = {
+            'solve_time': solve_time,
+            'objective_value': result.objective_value,
+            'feasible': result.feasible,
+            'active_positions': int(np.sum(result.weights > 0)),
+            'concentration': float(np.sum(result.weights ** 2)),
+            **risk_results,
+            **impact_results
         }
+
+        return portfolio_metrics
+
+    def _apply_stress_scenario(self, market_data: Any, scenario: str) -> Any:
+        """Apply stress scenario to market data."""
+        generator = EnhancedTestDataGenerator()
+        return generator.create_stress_scenario(market_data, scenario)
+
+    def _update_problem_data(self, problem: PortfolioOptProblem, 
+                           market_data: Any) -> PortfolioOptProblem:
+        """Update problem with new market data."""
+        problem.returns = market_data.returns
+        problem.volumes = market_data.volumes
+        problem.spreads = market_data.spreads
+        problem.factor_returns = market_data.factor_returns
+        problem.factor_exposures = market_data.factor_exposures
+        return problem
 
     def _save_benchmark_results(self, df: pd.DataFrame, benchmark_type: str) -> None:
         """Save benchmark results to files."""
@@ -152,7 +286,7 @@ class BenchmarkRunner:
             json.dump(serializable_summary, f, indent=2)
 
     def _generate_summary(self, df: pd.DataFrame, benchmark_type: str) -> Dict:
-        """Generate summary statistics from benchmark results."""
+        """Generate comprehensive summary statistics from benchmark results."""
         summary = {
             'benchmark_type': benchmark_type,
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -161,44 +295,58 @@ class BenchmarkRunner:
                 'n_assets': df['n_assets'].unique().tolist(),
                 'n_periods': df['n_periods'].unique().tolist()
             },
-            'metrics': {}
+            'metrics': {},
+            'stress_analysis': {}
         }
-        
-        # Calculate statistics for relevant metrics
-        metrics_to_summarize = ['solve_time', 'objective_value', 'return', 
-                              'volatility', 'sharpe_ratio', 'active_positions']
-        
-        for metric in metrics_to_summarize:
-            if metric in df.columns:
-                summary['metrics'][metric] = {
-                    'mean': float(df[metric].mean()),
-                    'std': float(df[metric].std()),
-                    'min': float(df[metric].min()),
-                    'max': float(df[metric].max()),
-                    'median': float(df[metric].median())
-                }
-        
-        # Calculate success rates
-        if 'feasible' in df.columns:
-            summary['success_rate'] = float(df['feasible'].mean())
-            
-            # Success rate by problem size
-            size_success = df.groupby(['n_assets', 'n_periods'])['feasible'].mean()
-            summary['size_success_rates'] = {
-                f"{assets}_{periods}": float(rate) 
-                for (assets, periods), rate in size_success.items()
+
+        # Calculate statistics for all numeric metrics
+        numeric_columns = df.select_dtypes(include=[np.number]).columns
+        for metric in numeric_columns:
+            summary['metrics'][metric] = {
+                'mean': float(df[metric].mean()),
+                'std': float(df[metric].std()),
+                'min': float(df[metric].min()),
+                'max': float(df[metric].max()),
+                'median': float(df[metric].median())
             }
-        
-        # Performance scaling analysis
-        if 'solve_time' in df.columns:
-            size_times = df.groupby(['n_assets', 'n_periods'])['solve_time'].agg(['mean', 'std'])
-            summary['performance_scaling'] = {
-                f"{assets}_{periods}": {
-                    'mean_time': float(stats['mean']),
-                    'std_time': float(stats['std'])
+
+        # Generate summary plots
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Size scaling plot
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(data=df, x='n_assets', y='solve_time')
+        plt.title('Solve Time by Problem Size')
+        plt.savefig(self.plots_dir / f"{timestamp}_size_scaling.png")
+        plt.close()
+
+        # Metric correlation plot
+        plt.figure(figsize=(12, 12))
+        sns.heatmap(df[numeric_columns].corr(), annot=True, cmap='coolwarm')
+        plt.title('Metric Correlations')
+        plt.savefig(self.plots_dir / f"{timestamp}_metric_correlations.png")
+        plt.close()
+
+        # Analyze stress scenarios if present
+        if 'scenario' in df.columns and len(df['scenario'].unique()) > 1:
+            for scenario in df['scenario'].unique():
+                scenario_data = df[df['scenario'] == scenario]
+                summary['stress_analysis'][scenario] = {
+                    'solve_success_rate': float(scenario_data['feasible'].mean()),
+                    'avg_solve_time': float(scenario_data['solve_time'].mean()),
+                    'avg_cost_increase': float(
+                        (scenario_data['total_cost'].mean() /
+                         df[df['scenario'] == 'base']['total_cost'].mean() - 1) * 100
+                    )
                 }
-                for (assets, periods), stats in size_times.iterrows()
-            }
-        
+
+            # Stress scenario comparison plot
+            plt.figure(figsize=(12, 6))
+            sns.boxplot(data=df, x='scenario', y='total_cost')
+            plt.title('Trading Costs by Scenario')
+            plt.xticks(rotation=45)
+            plt.savefig(self.plots_dir / f"{timestamp}_stress_comparison.png")
+            plt.close()
+
         return summary
 
