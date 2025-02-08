@@ -19,10 +19,35 @@ def suppress_slsqp_warnings():
         yield
 
 class ClassicalSolver(BaseSolver):
-    """Classical portfolio optimization solver using sequential relaxation."""
-    
+    """Classical portfolio optimization solver using sequential relaxation.
+
+    This solver implements a sophisticated approach to portfolio optimization that:
+    1. Uses sequential relaxation to handle non-linear constraints
+    2. Supports warm starting from previous solutions
+    3. Implements adaptive penalty adjustment
+    4. Handles market impact and transaction costs
+
+    The solver works in multiple stages:
+    1. Find minimum variance portfolio without turnover constraints
+    2. Gradually relax from current position to minimum variance target
+    3. Fine-tune solution with multiple random starts
+
+    Attributes:
+        max_iterations: Maximum number of relaxation steps
+        initial_penalty: Initial penalty for constraint violations
+        penalty_multiplier: Factor to increase penalties
+        perturbation_size: Size of random perturbations for multiple starts
+    """
+
     def __init__(self, **kwargs):
-        """Initialize solver with configurable parameters."""
+        """Initialize solver with configurable parameters.
+
+        Args:
+            max_iterations: Number of relaxation steps (default: 5)
+            initial_penalty: Initial constraint penalty (default: 100.0)
+            penalty_multiplier: Penalty increase factor (default: 10.0)
+            perturbation_size: Random perturbation scale (default: 0.01)
+        """
         self.max_iterations = kwargs.get('max_iterations', 5)
         self.initial_penalty = kwargs.get('initial_penalty', 100.0)
         self.penalty_multiplier = kwargs.get('penalty_multiplier', 10.0)
@@ -30,7 +55,7 @@ class ClassicalSolver(BaseSolver):
         self.logger = logging.getLogger(__name__)
         self.warnings: Dict[str, Any] = {}
 
-    def _run_single_optimization(self, 
+    def _run_single_optimization(self,
                                problem: PortfolioOptProblem,
                                target_weights: np.ndarray,
                                init_weights: np.ndarray,
@@ -38,16 +63,37 @@ class ClassicalSolver(BaseSolver):
                                turnover_limit: float,
                                bounds: List[Tuple[float, float]],
                                base_constraints: List[Dict]) -> OptimizeResult:
-        """Run a single optimization trial."""
+        """Run a single optimization trial with specific initial conditions.
+
+        This method:
+        1. Sets up the quadratic objective function
+        2. Applies all constraints including turnover
+        3. Uses SLSQP optimizer for the constrained optimization
+
+        Args:
+            problem: Portfolio optimization problem instance
+            target_weights: Target portfolio weights to move toward
+            init_weights: Initial weights for this optimization
+            prev_weights: Previous portfolio weights
+            turnover_limit: Maximum allowed turnover
+            bounds: Weight bounds for each asset
+            base_constraints: Base set of portfolio constraints
+
+        Returns:
+            OptimizeResult from scipy.optimize.minimize
+        """
         def objective(x):
+            # Quadratic deviation from target
             return np.sum((x - target_weights) ** 2)
-        
+
+        # Add turnover constraint to base constraints
         constraints = base_constraints.copy()
         constraints.append({
             'type': 'ineq',
             'fun': lambda x: turnover_limit - np.sum(np.abs(x - prev_weights))
         })
-        
+
+        # Run optimization with warning suppression
         with suppress_slsqp_warnings():
             result = minimize(
                 objective,
@@ -57,7 +103,7 @@ class ClassicalSolver(BaseSolver):
                 constraints=constraints,
                 options={'maxiter': 1000, 'ftol': 1e-9}
             )
-        
+
         return result
 
     def _find_minimum_variance(self, problem: PortfolioOptProblem, 
@@ -173,23 +219,30 @@ class ClassicalSolver(BaseSolver):
 
     def solve(self, problem: PortfolioOptProblem) -> PortfolioOptResult:
         """Solve the portfolio optimization problem.
-        
+
+        Implementation follows these steps:
+        1. Extract problem parameters and set up constraints
+        2. Find minimum variance portfolio as ideal target
+        3. Use sequential relaxation to move from current to target
+        4. Try multiple random starts at each relaxation step
+        5. Track best feasible solution found
+
         Args:
             problem: Portfolio optimization problem instance
-            
+
         Returns:
-            PortfolioOptResult containing the solution
+            PortfolioOptResult containing optimal weights and metadata
         """
         start_time = time.time()
         self.warnings.clear()
-        
-        # Get problem parameters
+
+        # Extract key problem parameters
         prev_weights = problem.constraints.get('prev_weights')
         turnover_limit = problem.constraints.get('turnover_limit')
         min_weight = problem.constraints.get('min_weight', 0.0)
         max_weight = problem.constraints.get('max_weight', 1.0)
 
-        # Setup optimization constraints
+        # Set up optimization constraints
         bounds = [(0, max_weight) for _ in range(problem.n_assets)]
         base_constraints = self._create_base_constraints(problem)
 
@@ -209,10 +262,12 @@ class ClassicalSolver(BaseSolver):
         # Stage 2: Sequential relaxation
         for alpha in np.linspace(0, 1, self.max_iterations):
             self.logger.debug(f"Relaxation step: alpha = {alpha:.3f}")
+            # Interpolate between current and minimum variance
             target_weights = alpha * min_var_weights + (1 - alpha) * prev_weights
 
             # Try multiple initial points
             for trial in range(3):
+                # Generate perturbed initial weights
                 init_weights = self._perturb_weights(current_weights, alpha)
                 result = self._run_single_optimization(
                     problem, target_weights, init_weights, prev_weights,
@@ -220,16 +275,19 @@ class ClassicalSolver(BaseSolver):
                 )
 
                 if result.success:
+                    # Process and validate solution
                     weights = self._process_weights(result.x, min_weight)
                     turnover = np.sum(np.abs(weights - prev_weights))
                     self.logger.debug(f"Trial {trial + 1}: turnover = {turnover:.4f}")
 
+                    # Update best solution if better
                     if turnover < best_turnover:
                         best_turnover = turnover
                         best_result = result
                         best_weights = weights.copy()
                         current_weights = weights.copy()
 
+                        # Return immediately if solution is feasible
                         if turnover <= turnover_limit * 1.001:
                             self.logger.debug("Found feasible solution")
                             return PortfolioOptResult(

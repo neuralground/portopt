@@ -5,18 +5,41 @@ from typing import Dict, Optional, List
 from scipy import stats
 
 class LiquidityMetrics:
-    """Calculates portfolio liquidity metrics."""
+    """Advanced liquidity analysis for portfolio optimization.
+    
+    This class provides comprehensive liquidity analysis including:
+    - Trading volume analysis
+    - Bid-ask spread impact
+    - Market impact estimation
+    - Liquidation analysis
+    - Multi-day trading scheduling
+    
+    The implementation considers multiple liquidity dimensions:
+    1. Volume-based measures (ADV participation)
+    2. Cost-based measures (spread costs)
+    3. Price impact sensitivity
+    4. Time to liquidation
+    5. Trading capacity constraints
+    
+    Typical usage:
+        >>> metrics = LiquidityMetrics(volumes, prices, spreads, returns)
+        >>> liquidity_analysis = metrics.calculate_metrics(
+        ...     weights=portfolio_weights,
+        ...     trade_horizon=5
+        ... )
+    """
     
     def __init__(self, volumes: np.ndarray, prices: np.ndarray, 
                  spreads: np.ndarray, returns: np.ndarray):
-        """
-        Initialize liquidity metrics calculator.
+        """Initialize liquidity metrics calculator.
         
         Args:
             volumes: Trading volumes (n_assets x n_periods)
             prices: Asset prices (n_assets x n_periods)
             spreads: Bid-ask spreads (n_assets x n_periods)
             returns: Asset returns (n_assets x n_periods)
+            
+        All input arrays should have matching dimensions where applicable
         """
         self.volumes = volumes
         self.prices = prices
@@ -26,36 +49,52 @@ class LiquidityMetrics:
         
     def calculate_metrics(self, weights: np.ndarray,
                          trade_horizon: int = 5) -> Dict[str, float]:
-        """
-        Calculate comprehensive liquidity metrics.
+        """Calculate comprehensive liquidity metrics.
+        
+        Computes multiple liquidity measures:
+        1. Basic liquidity metrics (volume, spread)
+        2. Advanced metrics (price impact, stability)
+        3. Trading capacity analysis
         
         Args:
             weights: Portfolio weights
             trade_horizon: Trading horizon in days for liquidation analysis
             
         Returns:
-            Dictionary of liquidity metrics
+            Dictionary containing all liquidity metrics
         """
         metrics = {}
         
-        # Basic liquidity metrics
+        # Calculate basic liquidity metrics
         metrics.update(self._calculate_basic_metrics(weights))
         
-        # Advanced liquidity metrics
+        # Calculate advanced liquidity metrics
         metrics.update(self._calculate_advanced_metrics(weights))
         
-        # Liquidation analysis
+        # Calculate liquidation metrics
         metrics.update(self._calculate_liquidation_metrics(weights, trade_horizon))
         
         return metrics
     
     def _calculate_basic_metrics(self, weights: np.ndarray) -> Dict[str, float]:
-        """Calculate basic liquidity metrics."""
-        # Average daily volume participation
+        """Calculate basic liquidity metrics.
+        
+        Computes fundamental liquidity measures:
+        1. ADV participation rates
+        2. Spread costs
+        3. Basic capacity measures
+        
+        Args:
+            weights: Portfolio weights
+            
+        Returns:
+            Dictionary of basic liquidity metrics
+        """
+        # Calculate average daily volume participation
         avg_volumes = np.mean(self.volumes, axis=1)
         participation_rates = weights / avg_volumes
         
-        # Average spread costs
+        # Calculate spread costs
         avg_spreads = np.mean(self.spreads, axis=1)
         spread_costs = weights * avg_spreads
         
@@ -67,16 +106,29 @@ class LiquidityMetrics:
         }
     
     def _calculate_advanced_metrics(self, weights: np.ndarray) -> Dict[str, float]:
-        """Calculate advanced liquidity metrics."""
-        # Amihud illiquidity ratio
+        """Calculate advanced liquidity metrics.
+        
+        Computes sophisticated liquidity measures:
+        1. Amihud illiquidity ratio
+        2. Relative spread score
+        3. Volume stability measures
+        4. Price impact sensitivity
+        
+        Args:
+            weights: Portfolio weights
+            
+        Returns:
+            Dictionary of advanced liquidity metrics
+        """
+        # Calculate Amihud illiquidity ratio
         daily_dollar_volume = self.volumes * self.prices
         amihud_ratio = np.abs(self.returns) / daily_dollar_volume
         portfolio_amihud = np.sum(weights.reshape(-1, 1) * amihud_ratio, axis=0)
         
-        # Relative spread score
+        # Calculate relative spread score
         spread_score = np.sum(weights * np.mean(self.spreads, axis=1))
         
-        # Volume stability
+        # Calculate volume stability
         volume_volatility = np.std(self.volumes, axis=1) / np.mean(self.volumes, axis=1)
         portfolio_vol_stability = np.sum(weights * volume_volatility)
         
@@ -88,19 +140,32 @@ class LiquidityMetrics:
     
     def _calculate_liquidation_metrics(self, weights: np.ndarray,
                                     trade_horizon: int) -> Dict[str, float]:
-        """Calculate liquidation-based metrics."""
+        """Calculate liquidation-based metrics.
+        
+        Analyzes portfolio liquidation characteristics:
+        1. Days to liquidate positions
+        2. Liquidation cost estimates
+        3. Trading capacity analysis
+        4. Impact cost projections
+        
+        Args:
+            weights: Portfolio weights
+            trade_horizon: Trading horizon in days
+            
+        Returns:
+            Dictionary of liquidation-based metrics
+        """
         # Calculate daily liquidation capacity
         avg_daily_volume = np.mean(self.volumes, axis=1)
         position_sizes = weights * np.mean(self.prices, axis=1)
         
-        # Assume maximum participation rate of 20% of daily volume
+        # Maximum participation of 20% of daily volume
         max_daily_trade = 0.20 * avg_daily_volume * np.mean(self.prices, axis=1)
         
         # Calculate days to liquidate
         days_to_liquidate = position_sizes / max_daily_trade
         
-        # Calculate liquidation cost estimate
-        # Assume square root price impact model
+        # Calculate liquidation cost estimate using square root model
         price_impact = 0.1 * np.sqrt(position_sizes / (avg_daily_volume * trade_horizon))
         spread_impact = np.mean(self.spreads, axis=1) / 2
         total_cost = price_impact + spread_impact
@@ -113,14 +178,19 @@ class LiquidityMetrics:
         }
     
     def calculate_liquidity_buckets(self, weights: np.ndarray) -> Dict[str, float]:
-        """
-        Categorize portfolio into liquidity buckets.
+        """Categorize portfolio into liquidity buckets.
+        
+        Segments portfolio by liquidity levels:
+        1. Highly liquid (daily volume > $100M)
+        2. Moderately liquid ($10M-$100M)
+        3. Less liquid ($1M-$10M)
+        4. Illiquid (< $1M)
         
         Args:
             weights: Portfolio weights
             
         Returns:
-            Dictionary with allocation to different liquidity buckets
+            Dictionary with allocation to liquidity buckets
         """
         # Calculate average daily volume in dollars
         avg_daily_volume = np.mean(self.volumes * self.prices, axis=1)
@@ -149,8 +219,13 @@ class LiquidityMetrics:
     def calculate_time_to_liquidate(self, weights: np.ndarray,
                                   participation_rate: float = 0.20,
                                   max_price_impact: float = 0.02) -> Dict[str, np.ndarray]:
-        """
-        Calculate liquidation timeline considering price impact.
+        """Calculate optimal liquidation timeline.
+        
+        Creates liquidation schedule considering:
+        1. Volume participation constraints
+        2. Price impact limits
+        3. Market liquidity profile
+        4. Trading costs
         
         Args:
             weights: Portfolio weights
@@ -158,7 +233,10 @@ class LiquidityMetrics:
             max_price_impact: Maximum acceptable price impact
             
         Returns:
-            Dictionary with liquidation analysis
+            Dictionary containing:
+            - schedule: Daily liquidation amounts
+            - remaining: Remaining position after schedule
+            - total_days: Days needed for liquidation
         """
         position_values = weights * np.mean(self.prices, axis=1)
         avg_daily_volume = np.mean(self.volumes * self.prices, axis=1)
@@ -198,4 +276,3 @@ class LiquidityMetrics:
             'remaining': remaining_position,
             'total_days': day + 1
         }
-

@@ -28,23 +28,47 @@ from ..core.problem import PortfolioOptProblem
 from ..core.result import PortfolioOptResult
 
 class BenchmarkRunner:
-    """Runs comprehensive performance benchmarks across different solvers and problem sizes."""
-
+    """Comprehensive benchmark runner for portfolio optimization solvers.
+    
+    This class provides a systematic framework for:
+    1. Performance evaluation across different problem sizes
+    2. Stress testing under various market scenarios
+    3. Comprehensive metric collection and analysis
+    4. Automated result reporting and visualization
+    
+    The runner supports:
+    - Multiple solver comparison
+    - Size scaling analysis
+    - Stress scenario evaluation
+    - Detailed performance metrics
+    - Result persistence and visualization
+    
+    Example usage:
+        runner = BenchmarkRunner(output_dir="benchmark_results")
+        results = runner.run_size_scaling_benchmark(
+            solver_classes=[ClassicalSolver],
+            solver_params={'max_iterations': 20},
+            n_assets_range=[50, 100],
+            n_periods_range=[252],
+            n_trials=3
+        )
+    """
+    
     def __init__(self, output_dir: str = "benchmark_results"):
-        """Initialize benchmark runner.
-
+        """Initialize benchmark runner with output directory setup.
+        
         Args:
-            output_dir: Directory for output files
+            output_dir: Directory for storing benchmark results and plots
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
 
-        # Create subdirectories for different types of output
+        # Create organized subdirectories for different output types
         self.plots_dir = self.output_dir / "plots"
         self.plots_dir.mkdir(exist_ok=True)
 
-        # Set up file handler for warnings
+        # Set up warning logging
         fh = logging.FileHandler(self.output_dir / 'benchmark_warnings.log')
         fh.setLevel(logging.WARNING)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -82,30 +106,51 @@ class BenchmarkRunner:
                                  log_level: str = "INFO") -> pd.DataFrame:
         """Run comprehensive benchmarks across different problem sizes.
         
+        This method:
+        1. Generates test problems of various sizes
+        2. Tests multiple solver configurations
+        3. Applies stress scenarios if specified
+        4. Collects comprehensive metrics
+        5. Generates detailed reports
+        
         Args:
             solver_classes: List of solver classes to benchmark
-            solver_params: Solver parameters
-            n_assets_range: List of number of assets to test
-            n_periods_range: List of number of periods to test
+            solver_params: Parameters for solver initialization
+            n_assets_range: List of portfolio sizes to test
+            n_periods_range: List of time periods to test
             n_trials: Number of trials per configuration
-            stress_scenarios: Optional list of stress scenarios to test
-            log_level: Logging level
+            stress_scenarios: Optional list of stress scenarios
+            log_level: Logging verbosity level
+            
+        Returns:
+            DataFrame containing benchmark results
+            
+        The results include:
+        - Solve time and success rate
+        - Risk and return metrics
+        - Transaction cost analysis
+        - Constraint satisfaction
+        - Stress scenario impact
         """
         setup_logging(level=log_level)
         results = []
         
-        # Calculate total problems
-        total_problems = len(solver_classes) * len(n_assets_range) * len(n_periods_range) * n_trials
+        # Calculate total number of benchmark cases
+        total_problems = len(solver_classes) * len(n_assets_range) * \
+                        len(n_periods_range) * n_trials
         if stress_scenarios:
             total_problems *= len(stress_scenarios)
         
+        # Run benchmarks with progress tracking
         with tqdm(total=total_problems, desc="Running benchmark cases", ncols=80) as pbar:
             for solver_class in solver_classes:
                 for n_assets in n_assets_range:
                     for n_periods in n_periods_range:
                         for trial in range(n_trials):
-                            # Generate base problem
-                            problem, market_data = self._generate_test_problem(n_assets, n_periods)
+                            # Generate base test problem
+                            problem, market_data = self._generate_test_problem(
+                                n_assets, n_periods
+                            )
                             
                             # Initialize metrics calculators
                             risk_metrics = EnhancedRiskMetrics(
@@ -128,16 +173,18 @@ class BenchmarkRunner:
                                     market_data = self._apply_stress_scenario(
                                         market_data, scenario
                                     )
-                                    problem = self._update_problem_data(problem, market_data)
+                                    problem = self._update_problem_data(
+                                        problem, market_data
+                                    )
                                 
-                                # Solve problem
+                                # Solve problem and analyze results
                                 solver = solver_class(**solver_params)
                                 result = self._solve_and_analyze(
                                     solver, problem, market_data,
                                     risk_metrics, impact_model
                                 )
                                 
-                                # Record results
+                                # Record results with metadata
                                 result_data = {
                                     'solver_class': solver_class.__name__,
                                     'n_assets': n_assets,
@@ -193,13 +240,30 @@ class BenchmarkRunner:
                           market_data: Any,
                           risk_metrics: EnhancedRiskMetrics,
                           impact_model: MarketImpactModel) -> Dict[str, Any]:
-        """Solve problem and calculate comprehensive metrics."""
-        # Solve problem
+        """Run solver and calculate comprehensive metrics.
+        
+        This method:
+        1. Times the solver execution
+        2. Calculates risk metrics
+        3. Estimates market impact
+        4. Generates visualization plots
+        
+        Args:
+            solver: Portfolio optimization solver instance
+            problem: Problem definition
+            market_data: Market data for analysis
+            risk_metrics: Risk metrics calculator
+            impact_model: Market impact model
+            
+        Returns:
+            Dictionary of metrics and analysis results
+        """
+        # Solve problem with timing
         start_time = time.perf_counter()
         result = solver.solve(problem)
         solve_time = time.perf_counter() - start_time
 
-        # Calculate risk metrics
+        # Calculate comprehensive risk metrics
         risk_results = risk_metrics.calculate_all_metrics(
             weights=result.weights,
             benchmark_weights=problem.constraints.get('benchmark_weights'),
@@ -207,16 +271,16 @@ class BenchmarkRunner:
             spreads=market_data.spreads
         )
 
-        # Calculate market impact
+        # Calculate market impact costs
         impact_results = impact_model.estimate_total_costs(
             weights=result.weights,
             prev_weights=problem.constraints.get('prev_weights')
         )
 
-        # Generate plots
+        # Generate analysis plots
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Risk plots
+        
+        # Create and save various analysis plots
         risk_plots = create_risk_plots(
             risk_results,
             factor_exposures=problem.factor_exposures,
@@ -224,7 +288,6 @@ class BenchmarkRunner:
         )
         self._save_plots(risk_plots, f"{timestamp}_risk")
 
-        # Impact plots
         impact_plots = create_impact_plots(
             impact_model,
             result.weights,
@@ -232,15 +295,13 @@ class BenchmarkRunner:
         )
         self._save_plots(impact_plots, f"{timestamp}_impact")
 
-        # Performance plots
         perf_plots = create_performance_plots(
             problem.returns,
-            result.weights,
-            benchmark_returns=None  # Add benchmark returns if available
+            result.weights
         )
         self._save_plots(perf_plots, f"{timestamp}_performance")
 
-        # Calculate portfolio characteristics
+        # Compile comprehensive metrics
         portfolio_metrics = {
             'solve_time': solve_time,
             'objective_value': result.objective_value,
@@ -252,8 +313,8 @@ class BenchmarkRunner:
         }
 
         return portfolio_metrics
-
-    def _apply_stress_scenario(self, market_data: Any, scenario: str) -> Any:
+    
+     def _apply_stress_scenario(self, market_data: Any, scenario: str) -> Any:
         """Apply stress scenario to market data."""
         generator = EnhancedTestDataGenerator()
         return generator.create_stress_scenario(market_data, scenario)
