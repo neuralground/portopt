@@ -1,5 +1,3 @@
-// src/api/benchmarkApi.ts
-
 export interface BenchmarkConfig {
   id: string;
   name: string;

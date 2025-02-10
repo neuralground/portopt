@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { benchmarkApi, BenchmarkConfig, BenchmarkStatus } from '../api/benchmarkApi';
+import { benchmarkApi, BenchmarkConfig, BenchmarkStatus } from '../components/api/benchmarkApi';
 
 export const useBenchmark = () => {
   const [configs, setConfigs] = useState<BenchmarkConfig[]>([]);
