@@ -124,3 +124,4 @@ generated_docs/
 *.html
 !docs/**/*.html
 
+frontend/node_modules/
