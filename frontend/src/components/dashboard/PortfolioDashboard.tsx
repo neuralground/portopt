@@ -20,6 +20,7 @@ const PortfolioDashboard = () => {
               <TabsTrigger value="impact">Market Impact</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>
               <TabsTrigger value="constraints">Constraints</TabsTrigger>
+              <TabsTrigger value="benchmark">Benchmarking</TabsTrigger>
             </TabsList>
 
             <TabsContent value="risk">
@@ -43,6 +44,13 @@ const PortfolioDashboard = () => {
             <TabsContent value="constraints">
               <div className="grid gap-4 mt-4">
                 <ConstraintAnalysis />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="benchmark">
+              <div className="grid gap-4 mt-4">
+                <BenchmarkConfiguration />
+                <BenchmarkRunner />
               </div>
             </TabsContent>
           </Tabs>

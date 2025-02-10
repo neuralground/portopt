@@ -1,28 +1,36 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
          PieChart, Pie, Cell } from 'recharts';
-import { useOptimizationData } from '@/hooks/useOptimizationData';
-import { useChartConfig } from '@/hooks/useChartConfig';
+import { useOptimizationData } from '../../hooks/useOptimizationData';
+import { useChartConfig } from '../../hooks/useChartConfig';
 
 interface ConstraintChartProps {
   type: 'weights' | 'sectors' | 'violations';
 }
 
 const ConstraintChart: React.FC<ConstraintChartProps> = ({ type }) => {
-  const { data } = useOptimizationData();
+  const { data, loading } = useOptimizationData();
   const { colors, formatters } = useChartConfig();
 
+  if (loading || !data) {
+    return <div className="h-64 flex items-center justify-center">Loading...</div>;
+  }
+
   if (type === 'weights') {
-    const weightData = [
-      { range: '0-1%', count: 25 },
-      { range: '1-2%', count: 15 },
-      { range: '2-3%', count: 8 },
-      { range: '3-4%', count: 4 },
-      { range: '4-5%', count: 2 }
-    ];
+    // Create weight distribution data from portfolio weights
+    const weights = data.weights;
+    const buckets = [0.01, 0.02, 0.03, 0.04, 0.05];
+    const weightData = buckets.map((threshold, i) => {
+      const lowerBound = i === 0 ? 0 : buckets[i - 1];
+      const count = weights.filter(w => w >= lowerBound && w < threshold).length;
+      return {
+        range: `${(lowerBound * 100).toFixed(0)}-${(threshold * 100).toFixed(0)}%`,
+        count
+      };
+    });
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height={300}>
         <BarChart data={weightData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="range" />
@@ -35,17 +43,13 @@ const ConstraintChart: React.FC<ConstraintChartProps> = ({ type }) => {
   }
 
   if (type === 'sectors') {
-    const sectorData = [
-      { name: 'Technology', value: 24.5 },
-      { name: 'Financials', value: 22.3 },
-      { name: 'Healthcare', value: 18.7 },
-      { name: 'Consumer', value: 15.2 },
-      { name: 'Industrials', value: 12.8 },
-      { name: 'Others', value: 6.5 }
-    ];
+    const sectorData = Object.entries(data.constraints.sectorWeights).map(([name, value]) => ({
+      name,
+      value: value * 100
+    }));
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
             data={sectorData}
@@ -69,14 +73,28 @@ const ConstraintChart: React.FC<ConstraintChartProps> = ({ type }) => {
 
   if (type === 'violations') {
     const violationData = [
-      { constraint: 'Min Weight', current: 0.01, limit: 0.01, distance: 0 },
-      { constraint: 'Max Weight', current: 0.042, limit: 0.05, distance: 0.008 },
-      { constraint: 'Tech Sector', current: 0.245, limit: 0.25, distance: 0.005 },
-      { constraint: 'Turnover', current: 0.182, limit: 0.20, distance: 0.018 }
+      { 
+        constraint: 'Max Position', 
+        current: data.constraints.maxPosition,
+        limit: 0.05,
+        distance: 0.05 - data.constraints.maxPosition
+      },
+      {
+        constraint: 'Max Sector',
+        current: data.constraints.maxSector,
+        limit: 0.25,
+        distance: 0.25 - data.constraints.maxSector
+      },
+      {
+        constraint: 'Turnover',
+        current: data.constraints.turnover,
+        limit: 0.20,
+        distance: 0.20 - data.constraints.turnover
+      }
     ];
 
     return (
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={300}>
         <BarChart data={violationData} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis type="number" domain={[0, 'dataMax']} tickFormatter={formatters.percent} />

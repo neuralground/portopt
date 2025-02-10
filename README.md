@@ -92,32 +92,6 @@ The debug report includes:
 - Iteration-by-iteration metrics
 - Performance statistics
 
-## Project Structure
-
-```
-portopt/
-├── portopt/                 # Main package
-│   ├── config/             # Configuration management
-│   │   ├── default.ini     # Default settings
-│   │   ├── manager.py      # Config manager
-│   │   └── test_configs/   # Test configurations
-│   ├── core/               # Core components
-│   │   ├── problem.py      # Problem definition
-│   │   └── result.py       # Results handling
-│   ├── solvers/            # Optimization solvers
-│   │   ├── base.py         # Base solver interface
-│   │   └── classical.py    # Classical implementation
-│   └── utils/              # Utilities
-│       ├── logging.py      # Logging setup
-│       └── debug.py        # Debugging tools
-├── tests/                  # Test suite
-│   ├── conftest.py         # Test configuration
-│   ├── utils.py            # Test utilities
-│   └── test_*.py          # Test modules
-├── pyproject.toml         # Project metadata
-└── README.md             # This file
-```
-
 ## Development
 
 ### Running Tests

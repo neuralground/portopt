@@ -1,5 +1,36 @@
 import { useState, useEffect } from 'react';
-import { OptimizationResult } from '../types';
+
+export interface OptimizationResult {
+  weights: number[];
+  riskMetrics: {
+    volatility: number;
+    var95: number;
+    cvar95: number;
+    beta: number;
+    trackingError: number;
+  };
+  impactMetrics: {
+    totalCost: number;
+    spreadCost: number;
+    impactCost: number;
+    avgParticipation: number;
+  };
+  performanceMetrics: {
+    sharpeRatio: number;
+    informationRatio: number;
+    sortinoRatio: number;
+    returns: number[];
+  };
+  constraints: {
+    activePositions: number;
+    maxPosition: number;
+    maxSector: number;
+    turnover: number;
+    sectorWeights: {
+      [key: string]: number;
+    };
+  };
+}
 
 export const useOptimizationData = () => {
   const [data, setData] = useState<OptimizationResult | null>(null);
@@ -60,3 +91,5 @@ export const useOptimizationData = () => {
 
   return { data, loading, error };
 };
+
+export default useOptimizationData;

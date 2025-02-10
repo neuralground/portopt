@@ -3,21 +3,20 @@ import { useMemo } from 'react';
 export const useChartConfig = () => {
   const config = useMemo(() => ({
     colors: {
-      primary: '#2563eb',
-      secondary: '#9333ea',
-      success: '#16a34a',
-      warning: '#d97706',
-      error: '#dc2626',
-      muted: '#9ca3af',
+      primary: '#2563eb',    // blue-600
+      secondary: '#9333ea',  // purple-600
+      warning: '#d97706',    // amber-600
+      error: '#dc2626',      // red-600
+      muted: '#9ca3af',      // gray-400
       sectors: [
-        '#2563eb',
-        '#9333ea',
-        '#16a34a',
-        '#d97706',
-        '#dc2626',
-        '#9ca3af',
-        '#0891b2',
-        '#4f46e5'
+        '#2563eb',  // blue-600
+        '#9333ea',  // purple-600
+        '#16a34a',  // green-600
+        '#d97706',  // amber-600
+        '#dc2626',  // red-600
+        '#9ca3af',  // gray-400
+        '#0891b2',  // cyan-600
+        '#4f46e5'   // indigo-600
       ]
     },
     formatters: {

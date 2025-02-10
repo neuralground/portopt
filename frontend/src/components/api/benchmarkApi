@@ -1,0 +1,273 @@
+// src/api/benchmarkApi.ts
+
+export interface BenchmarkConfig {
+  id: string;
+  name: string;
+  description: string;
+  problemParams: {
+    nAssets: number;
+    nPeriods: number;
+    nTrials: number;
+  };
+  solverParams: {
+    maxIterations: number;
+    initialPenalty: number;
+    penaltyMultiplier: number;
+  };
+  constraints: {
+    minWeight: number;
+    maxWeight: number;
+    maxSectorWeight: number;
+    turnoverLimit: number;
+    targetReturn?: number;
+    maxVolatility?: number;
+    sectorConstraints?: Record<string, number>;
+  };
+  objectives: {
+    minimizeRisk: boolean;
+    maximizeReturn: boolean;
+    minimizeCosts: boolean;
+    weights?: Record<string, number>;
+  };
+}
+
+export interface BenchmarkStatus {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  progress: number;
+  currentTrial: number;
+  totalTrials: number;
+  metrics: {
+    solveTime: number[];
+    objectiveValue: number[];
+    riskMetrics: {
+      volatility: number[];
+      var: number[];
+      cvar: number[];
+      trackingError?: number[];
+    };
+    performanceMetrics: {
+      return: number[];
+      sharpeRatio: number[];
+      turnover: number[];
+      costBasis: number[];
+    };
+    constraintViolations: {
+      count: number[];
+      magnitude: number[];
+    };
+  };
+  error?: string;
+}
+
+class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+class BenchmarkApi {
+  private readonly baseUrl: string;
+  private readonly headers: HeadersInit;
+
+  constructor(baseUrl: string = '/api/benchmark') {
+    this.baseUrl = baseUrl;
+    this.headers = {
+      'Content-Type': 'application/json',
+    };
+  }
+
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      let errorMessage = 'API request failed';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        // If parsing fails, use status text
+        errorMessage = response.statusText;
+      }
+      throw new ApiError(response.status, errorMessage);
+    }
+    return response.json();
+  }
+
+  private async fetchWithTimeout(
+    url: string, 
+    options: RequestInit = {}, 
+    timeout: number = 30000
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: this.headers
+      });
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Configuration Management
+  async saveConfig(config: BenchmarkConfig): Promise<BenchmarkConfig> {
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/configs`,
+        {
+          method: 'POST',
+          body: JSON.stringify(config)
+        }
+      );
+      return this.handleResponse<BenchmarkConfig>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, 'Failed to save configuration');
+    }
+  }
+
+  async loadConfigs(): Promise<BenchmarkConfig[]> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/configs`);
+      return this.handleResponse<BenchmarkConfig[]>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, 'Failed to load configurations');
+    }
+  }
+
+  async loadConfig(id: string): Promise<BenchmarkConfig> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/configs/${id}`);
+      return this.handleResponse<BenchmarkConfig>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Failed to load configuration ${id}`);
+    }
+  }
+
+  // Benchmark Execution
+  async startRun(configId: string): Promise<string> {
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/runs`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ configId })
+        }
+      );
+      const data = await this.handleResponse<{ runId: string }>(response);
+      return data.runId;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, 'Failed to start benchmark run');
+    }
+  }
+
+  async stopRun(runId: string): Promise<void> {
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/runs/${runId}/stop`,
+        { method: 'POST' }
+      );
+      await this.handleResponse<void>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Failed to stop run ${runId}`);
+    }
+  }
+
+  async getRunStatus(runId: string): Promise<BenchmarkStatus> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/runs/${runId}`);
+      return this.handleResponse<BenchmarkStatus>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Failed to get status for run ${runId}`);
+    }
+  }
+
+  // Results Management
+  async getRunResults(runId: string): Promise<any> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/runs/${runId}/results`);
+      return this.handleResponse<any>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Failed to get results for run ${runId}`);
+    }
+  }
+
+  async saveResults(runId: string, format: 'json' | 'csv' | 'excel'): Promise<Blob> {
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/runs/${runId}/results/export?format=${format}`
+      );
+      if (!response.ok) {
+        throw new ApiError(response.status, 'Failed to export results');
+      }
+      return response.blob();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, `Failed to export results for run ${runId}`);
+    }
+  }
+
+  // Real-time Updates
+  subscribeToRunUpdates(
+    runId: string, 
+    callback: (status: BenchmarkStatus) => void
+  ): () => void {
+    const eventSource = new EventSource(`${this.baseUrl}/runs/${runId}/events`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        callback(JSON.parse(event.data));
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }
+
+  // Presets and Templates
+  async getPresetConfigs(): Promise<BenchmarkConfig[]> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/configs/presets`);
+      return this.handleResponse<BenchmarkConfig[]>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, 'Failed to load preset configurations');
+    }
+  }
+
+  async saveAsPreset(config: BenchmarkConfig): Promise<BenchmarkConfig> {
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/configs/presets`,
+        {
+          method: 'POST',
+          body: JSON.stringify(config)
+        }
+      );
+      return this.handleResponse<BenchmarkConfig>(response);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(500, 'Failed to save preset configuration');
+    }
+  }
+}
+
+export const benchmarkApi = new BenchmarkApi();
