@@ -1,3 +1,19 @@
+"""
+Debugging utilities for portfolio optimization.
+
+This module provides tools for debugging and analyzing the portfolio optimization
+process. It includes functionality for:
+
+- Capturing and saving intermediate optimization states
+- Tracking convergence of iterative optimization algorithms
+- Visualizing optimization paths and constraint violations
+- Exporting debug data for external analysis
+- Comparing multiple optimization runs
+
+These utilities help developers understand the behavior of optimization algorithms
+and diagnose issues in complex optimization problems.
+"""
+
 import numpy as np
 from typing import Dict, Any, List, Tuple
 import json
@@ -92,4 +108,3 @@ class OptimizationDebugger:
                         f.write(f"  {key}: [array of size {len(value)}]\n")
                     else:
                         f.write(f"  {key}: {value}\n")
-

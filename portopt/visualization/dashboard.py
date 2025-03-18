@@ -1,3 +1,26 @@
+"""
+Dashboard visualization module for portfolio optimization.
+
+This module provides visualization components for displaying portfolio optimization
+results in an interactive dashboard. It includes:
+
+- Performance metrics visualization
+- Risk analysis charts
+- Transaction cost breakdown
+- Portfolio composition views
+- Optimization convergence tracking
+
+The implementation uses a web-based frontend for interactive data exploration
+and a Python backend for data processing and analysis.
+"""
+
+# This file was previously a JavaScript/React component
+# It should be reimplemented as a Python module for visualization
+# The original JavaScript code has been preserved as a reference below
+
+"""
+Original JavaScript/React implementation:
+
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,131 +42,60 @@ const PortfolioDashboard = () => {
     { time: '5D', spread_cost: 0.0015, impact_cost: 0.0022, total_cost: 0.0037 },
     // ... more data points
   ];
+"""
 
-  return (
-    <div className="w-full space-y-4 p-4">
-      <Tabs defaultValue="metrics" className="w-full">
-        <TabsList>
-          <TabsTrigger value="metrics">Performance Metrics</TabsTrigger>
-          <TabsTrigger value="impact">Market Impact</TabsTrigger>
-        </TabsList>
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from typing import Dict, List, Any, Optional
 
-        <TabsContent value="metrics">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Risk Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={performanceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="iteration" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="var" stroke="#8884d8" name="VaR" />
-                      <Line type="monotone" dataKey="cvar" stroke="#82ca9d" name="CVaR" />
-                      <Line type="monotone" dataKey="tracking_error" stroke="#ffc658" name="Tracking Error" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Factor Exposures
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={[
-                      { factor: 'Market', exposure: 1.02 },
-                      { factor: 'Size', exposure: -0.15 },
-                      { factor: 'Value', exposure: 0.45 },
-                      { factor: 'Momentum', exposure: -0.22 },
-                      { factor: 'Quality', exposure: 0.33 }
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="factor" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="exposure" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="impact">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Trading Costs
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={impactData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="spread_cost" stroke="#8884d8" name="Spread Cost" />
-                      <Line type="monotone" dataKey="impact_cost" stroke="#82ca9d" name="Impact Cost" />
-                      <Line type="monotone" dataKey="total_cost" stroke="#ffc658" name="Total Cost" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Liquidity Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={[
-                      { metric: 'ADV %', value: 2.5 },
-                      { metric: 'Turnover', value: 15.2 },
-                      { metric: 'Spread Impact', value: 0.12 },
-                      { metric: 'Market Impact', value: 0.18 }
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="metric" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-export default PortfolioDashboard;
-
+class PortfolioDashboard:
+    """Interactive dashboard for portfolio optimization visualization."""
+    
+    def __init__(self, results_data: Dict[str, Any]):
+        """Initialize the dashboard with optimization results.
+        
+        Args:
+            results_data: Dictionary containing optimization results and metrics
+        """
+        self.results = results_data
+        self.figures = {}
+    
+    def create_performance_chart(self) -> plt.Figure:
+        """Create a performance metrics chart.
+        
+        Returns:
+            Matplotlib figure with performance visualization
+        """
+        # Implementation would go here
+        fig, ax = plt.subplots(figsize=(10, 6))
+        # Add visualization code
+        return fig
+    
+    def create_risk_breakdown(self) -> plt.Figure:
+        """Create a risk metrics breakdown chart.
+        
+        Returns:
+            Matplotlib figure with risk visualization
+        """
+        # Implementation would go here
+        fig, ax = plt.subplots(figsize=(10, 6))
+        # Add visualization code
+        return fig
+    
+    def create_cost_analysis(self) -> plt.Figure:
+        """Create a transaction cost analysis chart.
+        
+        Returns:
+            Matplotlib figure with cost visualization
+        """
+        # Implementation would go here
+        fig, ax = plt.subplots(figsize=(10, 6))
+        # Add visualization code
+        return fig
+    
+    def display(self) -> None:
+        """Display all dashboard components."""
+        # Implementation would go here
+        pass

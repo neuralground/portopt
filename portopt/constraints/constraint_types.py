@@ -1,4 +1,18 @@
-# portopt/constraints/constraint_types.py
+"""
+Portfolio constraint definitions and validation module.
+
+This module defines the data structures and classes for representing and validating
+portfolio constraints. It includes:
+- Industry classification structures
+- Asset class definitions
+- Currency exposure tracking
+- Credit profile representation
+- Comprehensive portfolio constraint validation
+
+These components enable the specification and enforcement of complex constraints
+in portfolio optimization problems, including sector limits, asset class diversification,
+currency exposure management, and credit quality requirements.
+"""
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union, Set
@@ -210,4 +224,3 @@ class PortfolioConstraints:
             exposures['ratings'] = rating_exp
             
         return results, exposures
-

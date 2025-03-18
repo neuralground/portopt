@@ -1,3 +1,11 @@
+"""
+Configuration management module for portfolio optimization.
+
+This module provides functionality for loading, parsing, and accessing configuration
+settings for the portfolio optimization testbed. It supports reading from INI files,
+environment variables, and provides type conversion for configuration values.
+"""
+
 import os
 import configparser
 from typing import Dict, Any
@@ -34,7 +42,7 @@ class ConfigManager:
         # Convert types for numerical values
         self._convert_types()
 
-    def _convert_types(self):
+    def _convert_types(self) -> None:
         """Convert string values to appropriate types."""
         # Test parameters
         for key in ['n_assets', 'n_periods', 'n_simulations']:
@@ -104,4 +112,3 @@ class ConfigManager:
     def get_performance_metrics(self) -> Dict[str, bool]:
         """Get performance metrics settings."""
         return self.converted_values['performance_metrics'].copy()
-

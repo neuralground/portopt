@@ -4,14 +4,14 @@ import time
 import logging
 import warnings
 from contextlib import contextmanager
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Generator
 from scipy.optimize import minimize, OptimizeResult
 from .base import BaseSolver
 from ..core.problem import PortfolioOptProblem
 from ..core.result import PortfolioOptResult
 
 @contextmanager
-def suppress_slsqp_warnings():
+def suppress_slsqp_warnings() -> Generator[None, None, None]:
     """Context manager to suppress SLSQP bounds warnings."""
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=RuntimeWarning,
@@ -82,7 +82,17 @@ class ClassicalSolver(BaseSolver):
         Returns:
             OptimizeResult from scipy.optimize.minimize
         """
-        def objective(x):
+        def objective(x: np.ndarray) -> float:
+            """Calculate objective function value.
+            
+            Computes the squared deviation from target weights.
+            
+            Args:
+                x: Current portfolio weights
+                
+            Returns:
+                Sum of squared deviations from target
+            """
             # Quadratic deviation from target
             return np.sum((x - target_weights) ** 2)
 
@@ -338,4 +348,3 @@ class ClassicalSolver(BaseSolver):
             solve_time=time.time() - start_time,
             feasible=feasible
         )
-

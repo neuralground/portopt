@@ -1,3 +1,19 @@
+"""
+Portfolio risk metrics calculation module.
+
+This module implements advanced risk metrics for portfolio analysis and optimization.
+It provides comprehensive risk assessment capabilities including:
+
+- Standard risk measures (volatility, Value-at-Risk, Conditional Value-at-Risk)
+- Factor model risk decomposition
+- Liquidity-adjusted risk metrics
+- Tracking error and active risk
+- Stress testing and scenario analysis
+
+The implementation supports multiple risk measurement methodologies and can be
+used for both absolute risk assessment and relative risk against benchmarks.
+"""
+
 import numpy as np
 from typing import Dict, Optional, Tuple
 from scipy import stats
@@ -243,5 +259,3 @@ class EnhancedRiskMetrics:
             metrics.update(liquidity_metrics)
             
         return metrics
-    
- 

@@ -21,257 +21,193 @@ and constraint handlers designed for portfolio construction.
 
 ### Class Docstrings
 
-Class docstrings should describe the purpose of the class, its behavior, and important attributes.
+Class docstrings should describe the purpose of the class, its behavior, and any important attributes or methods.
 
 ```python
-class PortfolioOptProblem:
-    """
-    A class representing a portfolio optimization problem.
-    
-    This class encapsulates all the data and parameters needed to define a
-    portfolio optimization problem, including historical returns, constraints,
-    and optional market impact data.
-    
-    Parameters
-    ----------
-    returns : numpy.ndarray
-        Historical returns matrix with shape (n_periods, n_assets).
-    volumes : numpy.ndarray, optional
-        Trading volumes for each asset over time with shape (n_periods, n_assets).
-    market_impact_model : MarketImpactModel, optional
-        Model for estimating market impact of trades.
-    
-    Attributes
-    ----------
-    n_assets : int
-        Number of assets in the portfolio.
-    n_periods : int
-        Number of time periods in the historical data.
-    covariance_matrix : numpy.ndarray
-        Covariance matrix of asset returns.
-    
-    Notes
-    -----
-    The returns matrix should contain asset returns, not prices. If you have
-    price data, you should convert it to returns before creating a problem instance.
-    
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from portopt.core.problem import PortfolioOptProblem
-    >>> 
-    >>> # Create returns data (10 periods, 5 assets)
-    >>> returns = np.random.normal(0.001, 0.05, (10, 5))
-    >>> 
-    >>> # Create a problem instance
-    >>> problem = PortfolioOptProblem(returns=returns)
-    >>> print(f"Number of assets: {problem.n_assets}")
-    Number of assets: 5
+class ClassicalSolver(BaseSolver):
+    """Classical portfolio optimization solver using sequential relaxation.
+
+    This solver implements a sophisticated approach to portfolio optimization that:
+    1. Uses sequential relaxation to handle non-linear constraints
+    2. Supports warm starting from previous solutions
+    3. Implements adaptive penalty adjustment
+    4. Handles market impact and transaction costs
+
+    The solver works in multiple stages:
+    1. Find minimum variance portfolio without turnover constraints
+    2. Gradually relax from current position to minimum variance target
+    3. Fine-tune solution with multiple random starts
+
+    Attributes:
+        max_iterations: Maximum number of relaxation steps
+        initial_penalty: Initial penalty for constraint violations
+        penalty_multiplier: Factor to increase penalties
+        perturbation_size: Size of random perturbations for multiple starts
     """
 ```
 
-### Function Docstrings
+### Method and Function Docstrings
 
-Function docstrings should describe what the function does, its parameters, return values, and include examples.
+Method and function docstrings should describe what the function does, its parameters, return values, and any exceptions raised.
 
 ```python
-def calculate_sharpe_ratio(returns, risk_free_rate=0):
-    """
-    Calculate the Sharpe ratio of a series of returns.
+def calculate_var_cvar(self, weights: np.ndarray, 
+                      confidence_level: float = 0.95) -> Tuple[float, float]:
+    """Calculate Value at Risk and Conditional Value at Risk.
     
-    The Sharpe ratio is a measure of risk-adjusted return, calculated as
-    the excess return (over the risk-free rate) per unit of volatility.
+    Uses historical simulation approach to estimate tail risk.
     
     Parameters
     ----------
-    returns : numpy.ndarray
-        Array of returns.
-    risk_free_rate : float, optional
-        Risk-free rate, by default 0.
-    
+    weights : np.ndarray
+        Portfolio weights
+    confidence_level : float, optional
+        Confidence level for VaR calculation, by default 0.95
+        
     Returns
     -------
-    float
-        Sharpe ratio.
-    
+    Tuple[float, float]
+        (VaR, CVaR) tuple at the specified confidence level
+        
     Raises
     ------
     ValueError
-        If the returns array is empty or if the volatility is zero.
+        If weights do not sum to 1 or confidence level is not in (0,1)
+    """
+```
+
+## Inline Comments
+
+Inline comments should be used to explain complex or non-obvious code sections. They should focus on explaining "why" rather than "what" the code is doing.
+
+### Good Inline Comments
+
+```python
+# Use Ledoit-Wolf shrinkage to handle ill-conditioned covariance matrix
+shrinkage_factor = 0.2
+cov_matrix = (1 - shrinkage_factor) * empirical_cov + shrinkage_factor * target_matrix
+
+# Apply sequential relaxation to gradually enforce constraints
+for iteration in range(max_iterations):
+    # Increase penalty weights to enforce constraints more strictly in later iterations
+    penalty = initial_penalty * (penalty_multiplier ** iteration)
+```
+
+### Poor Inline Comments (Avoid)
+
+```python
+# Calculate the mean
+mean = np.mean(returns, axis=1)  # Obvious what the code does
+
+# Loop through assets
+for i in range(n_assets):  # Redundant comment
+```
+
+## Code Organization
+
+### Import Order
+
+Imports should be organized in the following order:
+
+1. Standard library imports
+2. Third-party library imports
+3. Local application imports
+
+Each group should be separated by a blank line.
+
+```python
+import numpy as np
+import time
+import logging
+from typing import Dict, List, Optional
+
+import pandas as pd
+from scipy.optimize import minimize
+
+from portopt.core.problem import PortfolioOptProblem
+from portopt.utils.logging import setup_logging
+```
+
+### Class and Function Order
+
+Within a module, classes and functions should be organized in a logical order:
+
+1. Module-level constants and variables
+2. Helper functions and classes
+3. Main classes
+4. Main functions
+5. Conditional main block (`if __name__ == "__main__":`)
+
+## Type Annotations
+
+Use type annotations for all function parameters and return values to improve code readability and enable static type checking.
+
+```python
+def optimize_portfolio(
+    returns: np.ndarray,
+    constraints: Dict[str, Any],
+    initial_weights: Optional[np.ndarray] = None
+) -> np.ndarray:
+    """Optimize portfolio weights."""
+```
+
+## Examples
+
+Include usage examples in docstrings for complex classes and functions:
+
+```python
+def calculate_efficient_frontier(
+    returns: np.ndarray,
+    cov_matrix: np.ndarray,
+    min_return: float,
+    max_return: float,
+    points: int = 50
+) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
+    """Calculate the efficient frontier for a set of assets.
     
     Examples
     --------
-    >>> import numpy as np
-    >>> from portopt.metrics.performance import calculate_sharpe_ratio
-    >>> 
-    >>> returns = np.array([0.05, 0.03, 0.04, -0.02, 0.01])
-    >>> sharpe = calculate_sharpe_ratio(returns, risk_free_rate=0.01)
-    >>> print(f"Sharpe ratio: {sharpe:.4f}")
-    Sharpe ratio: 0.7071
+    >>> returns = np.array([0.05, 0.1, 0.15, 0.2])
+    >>> cov_matrix = np.array([[0.1, 0.01, 0.02, 0.03],
+    ...                        [0.01, 0.2, 0.03, 0.04],
+    ...                        [0.02, 0.03, 0.3, 0.05],
+    ...                        [0.03, 0.04, 0.05, 0.4]])
+    >>> risk, ret, weights = calculate_efficient_frontier(returns, cov_matrix, 0.05, 0.15, 10)
+    >>> print(f"Number of portfolios: {len(weights)}")
+    Number of portfolios: 10
     """
 ```
 
-## Type Hints
+## Documentation Maintenance
 
-Use type hints to specify the expected types of function parameters and return values.
+### When to Update Documentation
 
-```python
-def calculate_portfolio_volatility(weights: np.ndarray, covariance_matrix: np.ndarray) -> float:
-    """
-    Calculate the volatility (standard deviation) of a portfolio.
-    
-    Parameters
-    ----------
-    weights : numpy.ndarray
-        Portfolio weights.
-    covariance_matrix : numpy.ndarray
-        Covariance matrix of asset returns.
-    
-    Returns
-    -------
-    float
-        Portfolio volatility.
-    """
-    return np.sqrt(weights.T @ covariance_matrix @ weights)
-```
+- When adding new functionality
+- When modifying existing functionality
+- When fixing bugs that change behavior
+- When refactoring code structure
 
-## Comments
+### Documentation Review
 
-Use comments to explain complex code sections, but prefer self-explanatory code when possible.
+All pull requests should include a review of documentation changes to ensure they meet these standards.
 
-```python
-# Bad: Unclear what this calculation does
-x = (a * b) / (c * d)
+## Tools for Documentation
 
-# Good: Clear explanation of a complex calculation
-# Calculate the information ratio as the active return divided by tracking error
-information_ratio = active_return / tracking_error
-```
+- Use [pydocstyle](http://www.pydocstyle.org/) for checking docstring style
+- Use [mypy](http://mypy-lang.org/) for checking type annotations
+- Use [sphinx](https://www.sphinx-doc.org/) for generating API documentation
 
-## Code Examples
+## Implementation Checklist
 
-Include code examples in docstrings to demonstrate how to use the function or class. Examples should be concise but complete enough to be run independently.
+When implementing or updating documentation, ensure:
 
-```python
-def create_equal_weight_portfolio(n_assets: int) -> np.ndarray:
-    """
-    Create an equal weight portfolio.
-    
-    Parameters
-    ----------
-    n_assets : int
-        Number of assets in the portfolio.
-    
-    Returns
-    -------
-    numpy.ndarray
-        Array of equal weights.
-    
-    Examples
-    --------
-    >>> from portopt.utils.portfolio import create_equal_weight_portfolio
-    >>> 
-    >>> # Create an equal weight portfolio with 5 assets
-    >>> weights = create_equal_weight_portfolio(5)
-    >>> print(weights)
-    [0.2 0.2 0.2 0.2 0.2]
-    """
-    return np.ones(n_assets) / n_assets
-```
-
-## Documenting Complex Algorithms
-
-For complex algorithms, include:
-1. A high-level description of the algorithm
-2. References to relevant papers or resources
-3. Explanation of key steps
-4. Time and space complexity information
-
-```python
-def solve_risk_parity(covariance_matrix: np.ndarray, max_iterations: int = 100, 
-                      tolerance: float = 1e-8) -> np.ndarray:
-    """
-    Solve for risk parity weights using the Newton-Raphson method.
-    
-    This implementation follows the approach described in:
-    Spinu, F. (2013). "An Algorithm for Computing Risk Parity Weights."
-    
-    The algorithm iteratively adjusts weights to equalize risk contribution
-    across all assets.
-    
-    Parameters
-    ----------
-    covariance_matrix : numpy.ndarray
-        Covariance matrix of asset returns.
-    max_iterations : int, optional
-        Maximum number of iterations, by default 100.
-    tolerance : float, optional
-        Convergence tolerance, by default 1e-8.
-    
-    Returns
-    -------
-    numpy.ndarray
-        Risk parity weights.
-    
-    Notes
-    -----
-    Time complexity: O(n^3 * iterations) where n is the number of assets
-    Space complexity: O(n^2) for storing the covariance matrix
-    
-    The algorithm may not converge for certain covariance matrices. In such
-    cases, consider using a different initial guess or regularizing the
-    covariance matrix.
-    """
-```
-
-## File Headers
-
-Include a header at the top of each file with copyright information and a brief description.
-
-```python
-# Copyright (c) 2023 Neural Ground
-# 
-# This file is part of the Portfolio Optimization Testbed.
-#
-# This module implements risk metrics for portfolio optimization.
-```
-
-## Documenting Changes
-
-When making significant changes to code, update the docstrings to reflect the changes and add a note in the docstring about when and why the change was made.
-
-```python
-def calculate_expected_shortfall(returns: np.ndarray, alpha: float = 0.05) -> float:
-    """
-    Calculate the Expected Shortfall (ES) of a series of returns.
-    
-    Parameters
-    ----------
-    returns : numpy.ndarray
-        Array of returns.
-    alpha : float, optional
-        Confidence level, by default 0.05 (95% confidence).
-    
-    Returns
-    -------
-    float
-        Expected Shortfall.
-    
-    Notes
-    -----
-    2023-06-15: Updated to use a more numerically stable algorithm.
-    """
-```
-
-## Documentation Testing
-
-All code examples in docstrings should be testable using [doctest](https://docs.python.org/3/library/doctest.html). This ensures that examples remain accurate as the codebase evolves.
-
-To run doctests:
-
-```bash
-python -m doctest -v path/to/module.py
-```
+- [ ] Module docstrings describe the purpose and functionality
+- [ ] Class docstrings explain behavior and attributes
+- [ ] Method/function docstrings include parameters, return values, and exceptions
+- [ ] Complex code sections have explanatory inline comments
+- [ ] Type annotations are used consistently
+- [ ] Examples are provided for non-trivial functionality
+- [ ] Documentation is kept up-to-date with code changes
 
 ## Best Practices
 
@@ -282,15 +218,6 @@ python -m doctest -v path/to/module.py
 5. **Include examples**: Practical examples help users understand how to use your code.
 6. **Document edge cases**: Explain how your code handles unusual inputs or error conditions.
 7. **Link to related documentation**: Reference related classes, functions, or external resources.
-
-## Tools for Documentation
-
-- [Sphinx](https://www.sphinx-doc.org/): Documentation generator
-- [NumPy docstring format](https://numpydoc.readthedocs.io/): Docstring style guide
-- [Black](https://black.readthedocs.io/): Code formatter
-- [isort](https://pycqa.github.io/isort/): Import sorter
-- [mypy](http://mypy-lang.org/): Static type checker
-- [doctest](https://docs.python.org/3/library/doctest.html): Test code examples in docstrings
 
 ## Conclusion
 

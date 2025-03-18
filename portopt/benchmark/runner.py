@@ -314,7 +314,7 @@ class BenchmarkRunner:
 
         return portfolio_metrics
     
-     def _apply_stress_scenario(self, market_data: Any, scenario: str) -> Any:
+    def _apply_stress_scenario(self, market_data: Any, scenario: str) -> Any:
         """Apply stress scenario to market data."""
         generator = EnhancedTestDataGenerator()
         return generator.create_stress_scenario(market_data, scenario)
@@ -410,4 +410,3 @@ class BenchmarkRunner:
             plt.close()
 
         return summary
-

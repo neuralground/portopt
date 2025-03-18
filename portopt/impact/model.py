@@ -1,3 +1,21 @@
+"""
+Market impact and transaction cost modeling module.
+
+This module provides classes and functions for estimating the market impact and
+transaction costs associated with portfolio trades. It implements sophisticated
+models that account for:
+
+- Permanent and temporary price impacts
+- Bid-ask spread costs
+- Volume-dependent effects
+- Price volatility scaling
+- Impact decay over time
+- Participation rate limits
+
+The implementation is based on academic research and industry best practices
+for transaction cost analysis and optimal trade execution.
+"""
+
 import numpy as np
 from typing import Dict, Optional, Tuple, List
 from dataclasses import dataclass
@@ -142,7 +160,7 @@ class MarketImpactParams:
             raise ValueError("Participation limit must be between 0 and 1")
             
     @classmethod
-    def high_urgency(cls) -> 'MarketImpactParams':
+    def high_urgency(cls) -> "MarketImpactParams":
         """Create parameters optimized for high-urgency trading.
         
         Returns parameters configured for scenarios requiring rapid execution:
@@ -164,7 +182,7 @@ class MarketImpactParams:
         )
     
     @classmethod
-    def low_urgency(cls) -> 'MarketImpactParams':
+    def low_urgency(cls) -> "MarketImpactParams":
         """Create parameters optimized for low-urgency trading.
         
         Returns parameters configured for patient execution:
@@ -185,7 +203,7 @@ class MarketImpactParams:
             max_time_window=30        # Longer trading window
         )
     
-    def adjust_for_market_cap(self, market_cap: float) -> 'MarketImpactParams':
+    def adjust_for_market_cap(self, market_cap: float) -> "MarketImpactParams":
         """Adjust parameters based on market capitalization.
         
         Scales impact parameters based on asset size:
@@ -215,7 +233,7 @@ class MarketImpactParams:
             spread_factor=self.spread_factor * factor
         )
     
-    def adjust_for_volatility(self, volatility: float) -> 'MarketImpactParams':
+    def adjust_for_volatility(self, volatility: float) -> "MarketImpactParams":
         """Adjust parameters based on market volatility.
         
         Scales impact parameters based on asset volatility:
@@ -525,4 +543,3 @@ class MarketImpactModel:
         }
         
         return total_costs
-    

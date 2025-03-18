@@ -1,3 +1,19 @@
+"""
+Logging configuration and utilities for portfolio optimization.
+
+This module provides logging functionality specifically designed for portfolio
+optimization processes. It includes:
+
+- Configurable logging setup with file and console output
+- Specialized logger for optimization processes
+- Structured logging of optimization metrics and progress
+- Performance tracking and timing information
+- Constraint violation reporting
+
+The logging utilities help track the progress and results of optimization runs
+and facilitate debugging of complex optimization problems.
+"""
+
 import logging
 import sys
 from pathlib import Path
@@ -73,4 +89,3 @@ class OptimizationLogger:
             f"objective={objective:.6f}, "
             f"time={solve_time:.2f}s"
         )
-

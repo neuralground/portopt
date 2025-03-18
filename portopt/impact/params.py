@@ -47,7 +47,7 @@ class MarketImpactParams:
             raise ValueError("Participation limit must be between 0 and 1")
             
     @classmethod
-    def high_urgency(cls) -> 'MarketImpactParams':
+    def high_urgency(cls) -> "MarketImpactParams":
         """Create parameters for high-urgency trading."""
         return cls(
             permanent_impact=0.15,
@@ -59,7 +59,7 @@ class MarketImpactParams:
         )
     
     @classmethod
-    def low_urgency(cls) -> 'MarketImpactParams':
+    def low_urgency(cls) -> "MarketImpactParams":
         """Create parameters for low-urgency trading."""
         return cls(
             permanent_impact=0.08,
@@ -116,4 +116,3 @@ class MarketImpactParams:
             'time_decay_factor': self.time_decay_factor,
             'max_time_window': self.max_time_window
         }
-

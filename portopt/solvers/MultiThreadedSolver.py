@@ -1,10 +1,26 @@
+"""
+Multi-threaded portfolio optimization solver module.
+
+This module provides a parallel implementation of the portfolio optimization solver
+that leverages multi-threading to improve performance. It implements:
+
+- Concurrent optimization of multiple relaxation factors
+- Thread pool management for efficient resource utilization
+- Parallel evaluation of objective functions
+- Synchronized result aggregation
+
+The implementation is designed to scale with the number of available CPU cores
+and is particularly effective for large portfolio optimization problems.
+"""
+
 import numpy as np
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from scipy.optimize import minimize
-from.base import BaseSolver
-from..core.problem import PortfolioOptProblem
-from..core.result import PortfolioOptResult
+from typing import List, Dict, Tuple, Any, Optional, Callable
+from .base import BaseSolver
+from ..core.problem import PortfolioOptProblem
+from ..core.result import PortfolioOptResult
 
 class MultithreadedSolver(BaseSolver):
     """Classical portfolio optimization solver using sequential relaxation with multithreading."""
@@ -17,8 +33,15 @@ class MultithreadedSolver(BaseSolver):
         self.perturbation_size = kwargs.get('perturbation_size', 0.01)
         self.n_threads = kwargs.get('n_threads', 4)  # Number of threads to use
 
-    def _create_base_constraints(self, problem):
-        """Create base constraints."""
+    def _create_base_constraints(self, problem: PortfolioOptProblem) -> List[Dict[str, Any]]:
+        """Create base constraints for the optimization problem.
+        
+        Args:
+            problem: Portfolio optimization problem definition
+            
+        Returns:
+            List of constraint dictionaries for scipy.optimize.minimize
+        """
         constraints = [
             {'type': 'eq', 'fun': lambda x: np.sum(x) - 1.0}  # Sum to 1
         ]
@@ -37,9 +60,35 @@ class MultithreadedSolver(BaseSolver):
 
         return constraints
 
-    def _optimize_subproblem(self, problem, target_weights, prev_weights, turnover_limit, bounds, base_constraints):
-        """Optimize a single subproblem with a given target."""
-        def objective(x):
+    def _optimize_subproblem(self, problem: PortfolioOptProblem, target_weights: np.ndarray, 
+                            prev_weights: np.ndarray, turnover_limit: float, 
+                            bounds: List[Tuple[float, float]], 
+                            base_constraints: List[Dict[str, Any]]) -> Tuple[np.ndarray, float]:
+        """Optimize a single subproblem with a given target.
+        
+        Args:
+            problem: Portfolio optimization problem definition
+            target_weights: Target portfolio weights for this subproblem
+            prev_weights: Previous portfolio weights
+            turnover_limit: Maximum allowed turnover
+            bounds: Weight bounds for each asset
+            base_constraints: Base constraints for the optimization
+            
+        Returns:
+            Tuple containing optimized weights and achieved turnover
+        """
+        def objective(x: np.ndarray) -> float:
+            """Calculate the objective function value.
+            
+            The objective is to minimize the squared deviation from target weights
+            while respecting all constraints.
+            
+            Args:
+                x: Portfolio weights
+                
+            Returns:
+                Objective function value (squared deviation)
+            """
             return np.sum((x - target_weights) ** 2)
 
         # Try multiple initial points
@@ -110,7 +159,7 @@ class MultithreadedSolver(BaseSolver):
         best_turnover = float('inf')
 
         with ThreadPoolExecutor(max_workers=self.n_threads) as executor:
-            futures =
+            futures = []  
             for alpha in relaxation_factors:
                 # Target weights for this iteration
                 target_weights = alpha * min_var_weights + (1 - alpha) * prev_weights
@@ -166,4 +215,3 @@ class MultithreadedSolver(BaseSolver):
             solve_time=solve_time,
             feasible=feasible
         )
-    
