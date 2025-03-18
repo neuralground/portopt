@@ -161,6 +161,8 @@ The package currently includes the following solver types:
 
 2. **Approximate/Heuristic Solvers**
    - `genetic`: Genetic Algorithm solver
+   - `advanced_genetic`: Advanced Genetic Algorithm solver with island model and multi-objective capabilities
+   - `advanced_genetic_multi`: Advanced Genetic Algorithm solver with multi-objective optimization
    - `annealing`: Simulated Annealing solver
 
 3. **Quantum Solvers**

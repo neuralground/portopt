@@ -72,6 +72,21 @@ def compare_solvers(problem: PortfolioOptProblem) -> Dict[str, PortfolioOptResul
     genetic_solver = factory.create_solver('genetic', population_size=100, generations=50)
     results['Genetic Algorithm'] = genetic_solver.solve(problem)
     
+    # Configure and run advanced genetic algorithm solver
+    print("Running advanced genetic algorithm solver...")
+    advanced_genetic_solver = factory.create_solver('advanced_genetic', 
+                                                   population_size=100, 
+                                                   generations=50,
+                                                   num_islands=3)
+    results['Advanced Genetic'] = advanced_genetic_solver.solve(problem)
+    
+    # Configure and run advanced genetic with multi-objective
+    print("Running advanced genetic with multi-objective optimization...")
+    multi_genetic_solver = factory.create_solver('advanced_genetic_multi', 
+                                               population_size=100, 
+                                               generations=50)
+    results['Multi-Objective Genetic'] = multi_genetic_solver.solve(problem)
+    
     # Configure and run simulated annealing solver
     print("Running simulated annealing solver...")
     annealing_solver = factory.create_solver('annealing', iterations=1000)

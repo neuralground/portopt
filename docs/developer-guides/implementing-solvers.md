@@ -277,7 +277,24 @@ python -m pytest -xvs tests/test_my_solver.py
 For examples of different solver implementations, see:
 
 - `portopt/solvers/classical.py`: Classical SLSQP solver
-- `portopt/solvers/approximate.py`: Genetic Algorithm and Simulated Annealing solvers
+- `portopt/solvers/approximate.py`: Basic Genetic Algorithm and Simulated Annealing solvers
+- `portopt/solvers/advanced_genetic.py`: Advanced Genetic Algorithm with island model and multi-objective capabilities
 - `portopt/solvers/quantum.py`: QAOA and VQE quantum solvers
 
 These examples demonstrate different approaches to implementing solvers within the framework.
+
+### Advanced Genetic Solver Features
+
+The `AdvancedGeneticSolver` in `advanced_genetic.py` provides an excellent example of implementing advanced metaheuristic features:
+
+1. **Island Model**: Maintains multiple sub-populations that evolve independently and occasionally exchange individuals, improving exploration of the solution space.
+
+2. **Adaptive Rates**: Dynamically adjusts mutation and crossover rates based on population diversity, preventing premature convergence.
+
+3. **Multi-Objective Optimization**: Balances risk and return objectives with configurable weights, allowing for more nuanced portfolio construction.
+
+4. **Diversity Preservation**: Implements niching and other techniques to maintain population diversity.
+
+5. **Early Stopping**: Monitors improvement over generations and can stop early if no progress is detected.
+
+When implementing your own advanced solvers, consider these techniques for improving performance and solution quality.

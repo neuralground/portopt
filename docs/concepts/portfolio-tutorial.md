@@ -214,6 +214,8 @@ Portfolio optimization problems can be solved using various algorithms, each wit
 
 **Algorithms:**
 - Genetic Algorithms
+  - Basic Genetic Algorithm
+  - Advanced Genetic Algorithm with island model and multi-objective capabilities
 - Simulated Annealing
 - Particle Swarm Optimization
 - Frank-Wolfe Algorithm
@@ -222,6 +224,7 @@ Portfolio optimization problems can be solved using various algorithms, each wit
 - Complex constraint structures
 - When computational speed is critical
 - Problems with many local optima
+- Multi-objective optimization scenarios
 
 ### 3. Quantum Optimization
 
@@ -250,6 +253,8 @@ The optimal solver depends on your specific requirements:
 | Large universe with many constraints | Heuristic |
 | Strict cardinality constraints | Genetic or Quantum |
 | Need for exact solutions | Classical |
+| Multi-objective optimization (risk/return) | Advanced Genetic |
+| Need for diverse solution exploration | Advanced Genetic with island model |
 | Exploratory research | Multiple solvers for comparison |
 
 Our `SolverFactory` provides a unified interface to create and configure different solver types, making it easy to experiment with various approaches.
