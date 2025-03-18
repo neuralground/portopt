@@ -11,13 +11,16 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
-      },
+    strictPort: true, // Fail if port is in use
+    host: '0.0.0.0', // Listen on all available network interfaces
+    open: false, // Don't auto-open browser
+    cors: true, // Enable CORS
+    hmr: {
+      overlay: true
     },
+    watch: {
+      usePolling: true // Use polling for file changes
+    }
   },
 });
+
