@@ -55,37 +55,17 @@ class ClassicalSolver(BaseSolver):
         self.logger = logging.getLogger(__name__)
         self.warnings: Dict[str, Any] = {}
 
-    def _run_single_optimization(self,
-                               problem: PortfolioOptProblem,
+    def _run_single_optimization(self, problem: PortfolioOptProblem, 
                                target_weights: np.ndarray,
                                init_weights: np.ndarray,
                                prev_weights: np.ndarray,
-                               turnover_limit: float,
-                               bounds: List[Tuple[float, float]],
+                               turnover_limit: Optional[float],
                                base_constraints: List[Dict]) -> OptimizeResult:
-        """Run a single optimization trial with specific initial conditions.
-
-        This method:
-        1. Sets up the quadratic objective function
-        2. Applies all constraints including turnover
-        3. Uses SLSQP optimizer for the constrained optimization
-
-        Args:
-            problem: Portfolio optimization problem instance
-            target_weights: Target portfolio weights to move toward
-            init_weights: Initial weights for this optimization
-            prev_weights: Previous portfolio weights
-            turnover_limit: Maximum allowed turnover
-            bounds: Weight bounds for each asset
-            base_constraints: Base set of portfolio constraints
-
-        Returns:
-            OptimizeResult from scipy.optimize.minimize
-        """
-        def objective(x: np.ndarray) -> float:
-            """Calculate objective function value.
+        """Run a single optimization step with specified parameters."""
+        def objective(x):
+            """Objective function for optimization.
             
-            Computes the squared deviation from target weights.
+            Minimizes squared deviation from target weights.
             
             Args:
                 x: Current portfolio weights
@@ -98,10 +78,11 @@ class ClassicalSolver(BaseSolver):
 
         # Add turnover constraint to base constraints
         constraints = base_constraints.copy()
-        constraints.append({
-            'type': 'ineq',
-            'fun': lambda x: turnover_limit - np.sum(np.abs(x - prev_weights))
-        })
+        if turnover_limit is not None:
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda x: turnover_limit - np.sum(np.abs(x - prev_weights))
+            })
 
         # Run optimization with warning suppression
         with suppress_slsqp_warnings():
@@ -109,11 +90,11 @@ class ClassicalSolver(BaseSolver):
                 objective,
                 init_weights,
                 method='SLSQP',
-                bounds=bounds,
+                bounds=[(0, 1) for _ in range(problem.n_assets)],
                 constraints=constraints,
-                options={'maxiter': 1000, 'ftol': 1e-9}
+                options={'maxiter': 1000, 'ftol': 1e-8}
             )
-
+            
         return result
 
     def _find_minimum_variance(self, problem: PortfolioOptProblem, 
@@ -248,6 +229,10 @@ class ClassicalSolver(BaseSolver):
 
         # Extract key problem parameters
         prev_weights = problem.constraints.get('prev_weights')
+        if prev_weights is None:
+            # If no previous weights provided, initialize with equal weights
+            prev_weights = np.ones(problem.n_assets) / problem.n_assets
+            
         turnover_limit = problem.constraints.get('turnover_limit')
         min_weight = problem.constraints.get('min_weight', 0.0)
         max_weight = problem.constraints.get('max_weight', 1.0)
@@ -281,70 +266,69 @@ class ClassicalSolver(BaseSolver):
                 init_weights = self._perturb_weights(current_weights, alpha)
                 result = self._run_single_optimization(
                     problem, target_weights, init_weights, prev_weights,
-                    turnover_limit, bounds, base_constraints
+                    turnover_limit, base_constraints
                 )
 
                 if result.success:
                     # Process and validate solution
                     weights = self._process_weights(result.x, min_weight)
-                    turnover = np.sum(np.abs(weights - prev_weights))
-                    self.logger.debug(f"Trial {trial + 1}: turnover = {turnover:.4f}")
+                    if turnover_limit is None:
+                        turnover = np.sum(np.abs(weights - prev_weights))
+                        self.logger.debug(f"Trial {trial + 1}: turnover = {turnover:.4f}")
+                        if turnover < best_turnover:
+                            best_turnover = turnover
+                            best_result = result
+                            best_weights = weights.copy()
+                            current_weights = weights.copy()
+                    else:
+                        turnover = np.sum(np.abs(weights - prev_weights))
+                        self.logger.debug(f"Trial {trial + 1}: turnover = {turnover:.4f}")
 
-                    # Update best solution if better
-                    if turnover < best_turnover:
-                        best_turnover = turnover
-                        best_result = result
-                        best_weights = weights.copy()
-                        current_weights = weights.copy()
+                        # Update best solution if better
+                        if turnover < best_turnover:
+                            best_turnover = turnover
+                            best_result = result
+                            best_weights = weights.copy()
+                            current_weights = weights.copy()
 
-                        # Return immediately if solution is feasible
-                        if turnover <= turnover_limit * 1.001:
-                            self.logger.debug("Found feasible solution")
-                            return PortfolioOptResult(
-                                weights=weights,
-                                objective_value=self._calculate_objective(weights, problem),
-                                solve_time=time.time() - start_time,
-                                feasible=True
-                            )
+                            # Return immediately if solution is feasible
+                            if turnover <= turnover_limit * 1.001:
+                                self.logger.debug("Found feasible solution")
+                                return PortfolioOptResult(
+                                    weights=weights,
+                                    objective_value=self._calculate_objective(weights, problem),
+                                    solve_time=time.time() - start_time,
+                                    feasible=True
+                                )
 
         # Return best solution found, even if not fully feasible
         return self._finalize_result(
             best_weights if best_weights is not None else prev_weights,
-            problem, prev_weights, turnover_limit, min_weight, start_time
+            prev_weights,
+            turnover_limit,
+            problem,
+            start_time
         )
 
-    def _finalize_result(self, weights: np.ndarray,
-                        problem: PortfolioOptProblem,
-                        prev_weights: np.ndarray,
-                        turnover_limit: float,
-                        min_weight: float,
-                        start_time: float) -> PortfolioOptResult:
-        """Create final optimization result with proper feasibility checks.
+    def _finalize_result(self, best_weights: np.ndarray, 
+                       prev_weights: np.ndarray,
+                       turnover_limit: Optional[float],
+                       problem: PortfolioOptProblem,
+                       start_time: float) -> PortfolioOptResult:
+        """Create final result with feasibility check."""
+        # Check turnover feasibility
+        actual_turnover = np.sum(np.abs(best_weights - prev_weights))
+        feasible = actual_turnover <= turnover_limit * 1.001 if turnover_limit is not None else True
         
-        Args:
-            weights: Portfolio weights
-            problem: Portfolio optimization problem
-            prev_weights: Previous portfolio weights
-            turnover_limit: Maximum allowed turnover
-            min_weight: Minimum allowed weight
-            start_time: Start time of optimization
-            
-        Returns:
-            PortfolioOptResult with final solution
-        """
-        weights = self._process_weights(weights, min_weight)
-        actual_turnover = np.sum(np.abs(weights - prev_weights))
-        feasible = actual_turnover <= turnover_limit * 1.001
-        
-        if not feasible:
+        if not feasible and turnover_limit is not None:
             self.warnings['turnover'] = {
-                'actual': actual_turnover,
-                'limit': turnover_limit
+                'limit': turnover_limit,
+                'actual': actual_turnover
             }
-        
+            
         return PortfolioOptResult(
-            weights=weights,
-            objective_value=self._calculate_objective(weights, problem),
+            weights=best_weights,
+            objective_value=self._calculate_objective(best_weights, problem),
             solve_time=time.time() - start_time,
             feasible=feasible
         )

@@ -159,12 +159,6 @@ class BenchmarkRunner:
                                 factor_exposures=market_data.factor_exposures
                             )
                             
-                            impact_model = MarketImpactModel(
-                                volumes=market_data.volumes,
-                                spreads=market_data.spreads,
-                                volatility=np.std(market_data.returns, axis=1)
-                            )
-                            
                             # Test base case and stress scenarios
                             scenarios = ['base'] + (stress_scenarios or [])
                             for scenario in scenarios:
@@ -176,6 +170,13 @@ class BenchmarkRunner:
                                     problem = self._update_problem_data(
                                         problem, market_data
                                     )
+                                
+                                # Create impact model with current market data
+                                impact_model = MarketImpactModel(
+                                    volumes=market_data.volumes,
+                                    spreads=market_data.spreads,
+                                    volatility=market_data.volatility if hasattr(market_data, 'volatility') and market_data.volatility is not None else np.std(market_data.returns, axis=1)
+                                )
                                 
                                 # Solve problem and analyze results
                                 solver = solver_class(**solver_params)
@@ -216,7 +217,9 @@ class BenchmarkRunner:
                 'max_weight': 0.15,
                 'max_sector_weight': 0.25,
                 'min_stocks_held': max(30, int(n_assets * 0.1)),
-                'turnover_limit': 0.15
+                'turnover_limit': 0.15,
+                'prev_weights': np.ones(n_assets) / n_assets,  # Equal weight portfolio as starting point
+                'benchmark_weights': np.ones(n_assets) / n_assets  # Use equal weight as benchmark
             }
 
         problem = PortfolioOptProblem(

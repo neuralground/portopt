@@ -3,6 +3,7 @@
 import pytest
 import numpy as np
 from portopt.core.problem import PortfolioOptProblem
+from portopt.constraints.constraint_types import IndustryClassification
 
 def test_problem_initialization():
     returns = np.random.randn(3, 100)
@@ -64,4 +65,3 @@ def test_problem_validation():
             constraints={},
             factor_returns=np.random.randn(3, n_periods)
         )
-

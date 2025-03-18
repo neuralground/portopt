@@ -3,21 +3,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import seaborn as sns
 from ..metrics import EnhancedRiskMetrics
 from ..impact import MarketImpactModel
 
 def create_risk_plots(risk_metrics: Dict[str, float], 
                      factor_exposures: Optional[np.ndarray] = None,
-                     benchmark_comparison: Optional[Dict[str, float]] = None) -> List[Figure]:
+                     benchmark_comparison: Optional[Union[Dict[str, float], np.ndarray]] = None) -> List[Figure]:
     """
     Create comprehensive risk analysis plots.
     
     Args:
         risk_metrics: Dictionary of risk metrics
-        factor_exposures: Optional factor exposures array
-        benchmark_comparison: Optional benchmark metrics for comparison
+        factor_exposures: Optional factor exposures array (can be 1D or 2D)
+        benchmark_comparison: Optional benchmark metrics for comparison (can be dict or numpy array)
     
     Returns:
         List of matplotlib figures
@@ -42,28 +42,50 @@ def create_risk_plots(risk_metrics: Dict[str, float],
     if factor_exposures is not None:
         fig2, ax2 = plt.subplots(figsize=(12, 6))
         factor_names = ['Market', 'Size', 'Value', 'Momentum', 'Quality']
-        ax2.barh(factor_names, factor_exposures)
+        
+        # Handle 2D factor exposures by taking the mean across assets
+        if len(factor_exposures.shape) > 1:
+            # If we have a 2D array (assets x factors), take the mean across assets
+            mean_exposures = np.mean(factor_exposures, axis=0)
+            # Ensure we only use as many factors as we have names for
+            n_factors = min(len(factor_names), len(mean_exposures))
+            ax2.barh(factor_names[:n_factors], mean_exposures[:n_factors])
+        else:
+            # If we already have a 1D array, use it directly
+            n_factors = min(len(factor_names), len(factor_exposures))
+            ax2.barh(factor_names[:n_factors], factor_exposures[:n_factors])
+            
         ax2.set_title('Factor Exposures')
         ax2.set_xlabel('Exposure')
         figures.append(fig2)
     
     # Risk metrics comparison
-    if benchmark_comparison:
+    if benchmark_comparison is not None and isinstance(benchmark_comparison, dict):
+        # Only create comparison plot if benchmark_comparison is a dictionary
         fig3, ax3 = plt.subplots(figsize=(10, 6))
-        metrics = ['Volatility', 'VaR', 'CVaR', 'Tracking Error']
-        portfolio_values = [risk_metrics.get(m.lower(), 0) for m in metrics]
-        benchmark_values = [benchmark_comparison.get(m.lower(), 0) for m in metrics]
+        metrics = ['Return', 'Volatility', 'Sharpe', 'VaR', 'CVaR']
+        portfolio_values = [
+            risk_metrics.get('return', 0),
+            risk_metrics.get('volatility', 0),
+            risk_metrics.get('sharpe_ratio', 0),
+            risk_metrics.get('var_95', 0),
+            risk_metrics.get('cvar_95', 0)
+        ]
+        benchmark_values = [
+            benchmark_comparison.get('return', 0),
+            benchmark_comparison.get('volatility', 0),
+            benchmark_comparison.get('sharpe_ratio', 0),
+            benchmark_comparison.get('var_95', 0),
+            benchmark_comparison.get('cvar_95', 0)
+        ]
         
         x = np.arange(len(metrics))
         width = 0.35
-        
         ax3.bar(x - width/2, portfolio_values, width, label='Portfolio')
         ax3.bar(x + width/2, benchmark_values, width, label='Benchmark')
-        
-        ax3.set_ylabel('Value')
-        ax3.set_title('Risk Metrics Comparison')
         ax3.set_xticks(x)
         ax3.set_xticklabels(metrics)
+        ax3.set_title('Portfolio vs Benchmark')
         ax3.legend()
         figures.append(fig3)
     
@@ -245,4 +267,3 @@ def create_constraint_plots(weights: np.ndarray,
         figures.append(fig2)
     
     return figures
-

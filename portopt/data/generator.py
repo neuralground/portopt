@@ -35,6 +35,7 @@ class MarketData:
         currencies: List of currency exposures per asset
         credit_profiles: List of credit ratings and profiles per asset
         market_caps: Array of market capitalizations
+        volatility: Asset return volatility (n_assets)
     """
     returns: np.ndarray              
     volumes: np.ndarray             
@@ -45,8 +46,8 @@ class MarketData:
     asset_classes: List[AssetClass]               
     currencies: List[CurrencyExposure]            
     credit_profiles: List[CreditProfile]          
-    market_caps: np.ndarray        
-
+    market_caps: np.ndarray         
+    volatility: np.ndarray = None  
 
 @dataclass
 class MarketData:
@@ -61,6 +62,7 @@ class MarketData:
     currencies: List[CurrencyExposure]            # Currency exposures
     credit_profiles: List[CreditProfile]          # Credit ratings
     market_caps: np.ndarray        # Market capitalizations
+    volatility: np.ndarray = None  # Asset return volatility (n_assets)
 
 class EnhancedTestDataGenerator:
     """Generates realistic test data for portfolio optimization experiments.
@@ -176,6 +178,7 @@ class EnhancedTestDataGenerator:
             - currencies: Currency exposures
             - credit_profiles: Credit ratings
             - market_caps: Market capitalizations
+            - volatility: Asset return volatility
         """
         # Generate factor-based returns
         factor_returns = self.generate_factor_returns(n_periods)
@@ -202,6 +205,9 @@ class EnhancedTestDataGenerator:
         currencies = self.generate_currency_exposures(n_assets)
         credit_profiles = self.generate_credit_profiles(n_assets)
 
+        # Generate volatility
+        volatility = np.std(returns, axis=1)
+
         return MarketData(
             returns=returns,
             volumes=volumes,
@@ -212,7 +218,8 @@ class EnhancedTestDataGenerator:
             asset_classes=asset_classes,
             currencies=currencies,
             credit_profiles=credit_profiles,
-            market_caps=market_caps
+            market_caps=market_caps,
+            volatility=volatility
         )
 
     def generate_factor_returns(self, n_periods: int) -> np.ndarray:
@@ -349,22 +356,22 @@ class EnhancedTestDataGenerator:
 
     def create_stress_scenario(self, base_data: MarketData, 
                              scenario_type: str) -> MarketData:
-        """Create stress scenario by modifying base market data.
+        """Create a stress scenario by modifying market data.
         
-        Implements common stress scenarios:
-        1. Market crash: High volatility, correlations
-        2. Liquidity crisis: Volume drops, spread spikes
-        3. Sector rotation: Sector-specific shocks
-        4. Currency crisis: Regional currency stress
-        5. Credit event: Rating-based stress
+        Implements different types of market stress:
+        - market_crash: Extreme volatility and reduced liquidity
+        - liquidity_crisis: Severe reduction in trading volumes
+        - sector_rotation: Large factor movements
+        - interest_rate_shock: Impact on fixed income assets
         
         Args:
-            base_data: Base market data
-            scenario_type: Type of stress scenario
+            base_data: Base market data to modify
+            scenario_type: Type of stress scenario to apply
             
         Returns:
-            Modified MarketData reflecting stress scenario
+            Modified market data representing stress scenario
         """
+        # Create a deep copy of the base data
         stress_data = MarketData(
             returns=base_data.returns.copy(),
             volumes=base_data.volumes.copy(),
@@ -375,24 +382,51 @@ class EnhancedTestDataGenerator:
             asset_classes=base_data.asset_classes.copy(),
             currencies=base_data.currencies.copy(),
             credit_profiles=base_data.credit_profiles.copy(),
-            market_caps=base_data.market_caps.copy()
+            market_caps=base_data.market_caps.copy(),
+            volatility=base_data.volatility.copy() if base_data.volatility is not None else np.std(base_data.returns, axis=1)
         )
         
         if scenario_type == "market_crash":
             stress_data.returns *= 2.0        # Double volatility
-            stress_data.volumes *= 3.0        # Triple volumes
-            stress_data.spreads *= 5.0        # 5x spreads
+            stress_data.volumes *= 0.05       # Reduce volumes by 95%
+            stress_data.spreads *= 50.0       # 50x spreads
             stress_data.factor_returns *= 1.5  # Increase factor effects
+            
+            # Ensure volatility is increased as it directly affects impact costs
+            if stress_data.volatility is not None:
+                stress_data.volatility *= 3.0  # Triple volatility
             
         elif scenario_type == "liquidity_crisis":
             stress_data.volumes *= 0.2        # 80% volume drop
             stress_data.spreads *= 10.0       # 10x spreads
-            # More severe for small caps
-            for i, ac in enumerate(stress_data.asset_classes):
-                if ac.sub_type == 'Small Cap':
-                    stress_data.volumes[i] *= 0.5
-                    stress_data.spreads[i] *= 2.0
+            # Volatility increases moderately in liquidity crisis
+            if stress_data.volatility is not None:
+                stress_data.volatility *= 1.5  # 50% increase in volatility
+            
+        elif scenario_type == "sector_rotation":
+            # Modify factor returns to create sector rotation
+            n_factors = stress_data.factor_returns.shape[0]
+            sector_factors = np.random.choice(n_factors, size=2, replace=False)
+            
+            # Amplify selected sector factors
+            for factor in sector_factors:
+                stress_data.factor_returns[factor, :] *= 3.0
+                
+            # Increase volatility for sector rotation
+            if stress_data.volatility is not None:
+                stress_data.volatility *= 1.8  # 80% increase in volatility
+                
+        elif scenario_type == "interest_rate_shock":
+            # Affect fixed income assets
+            for i, asset_class in enumerate(stress_data.asset_classes):
+                if asset_class.asset_type == "Fixed Income":
+                    # Reduce returns for fixed income
+                    stress_data.returns[i, :] -= 0.01
                     
+            # Increase volatility for interest rate shock
+            if stress_data.volatility is not None:
+                stress_data.volatility *= 1.4  # 40% increase in volatility
+                
         elif scenario_type == "credit_event":
             for i, profile in enumerate(stress_data.credit_profiles):
                 if profile.rating.startswith('B'):
