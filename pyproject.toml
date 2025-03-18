@@ -22,6 +22,10 @@ dependencies = [
     "tqdm",
     "matplotlib>=3.4",
     "seaborn>=0.11",
+    "qiskit>=1.0.0",
+    "qiskit-aer>=0.13.0",
+    "qiskit-optimization>=0.5.0",
+    "qiskit-algorithms>=0.2.0",
 ]
 dynamic = ["version"]
 
@@ -54,4 +58,3 @@ multi_line_output = 3
 python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
-

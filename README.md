@@ -5,6 +5,8 @@ A Python package for comparing classical and quantum approaches to portfolio opt
 ## Overview
 This package provides a testbed for experimenting with different portfolio optimization approaches, with particular focus on:
 - Classical optimization methods
+- Approximate/heuristic optimization methods
+- Quantum optimization algorithms
 - Risk-based portfolio construction
 - Constraint handling
 - Performance benchmarking
@@ -47,7 +49,8 @@ pip install -e ".[dev]"
 
 ### Basic Usage
 ```python
-from portopt import TestDataGenerator, ClassicalSolver
+from portopt import TestDataGenerator
+from portopt.solvers import SolverFactory
 from portopt.utils.logging import setup_logging, OptimizationLogger
 
 # Set up logging
@@ -61,15 +64,108 @@ problem = generator.generate_realistic_problem(
     n_periods=252
 )
 
-# Create and run solver
-solver = ClassicalSolver(
+# Create a solver factory
+factory = SolverFactory()
+
+# Create a classical solver
+solver = factory.create_solver('classical', 
     max_iterations=20,
     initial_penalty=100.0
 )
+
+# Solve the problem
 result = solver.solve(problem)
 
 print(result)
 ```
+
+### Using Multiple Solver Types
+The package supports various solver types through a unified interface:
+
+```python
+from portopt.solvers import SolverFactory
+
+# Create a solver factory
+factory = SolverFactory()
+
+# List available solvers
+available_solvers = factory.get_available_solvers()
+print(available_solvers)
+
+# Create different solver types
+classical_solver = factory.create_solver('classical')
+genetic_solver = factory.create_solver('genetic', population_size=100)
+annealing_solver = factory.create_solver('annealing', initial_temp=100.0)
+
+# Quantum solvers
+qaoa_solver = factory.create_solver('qaoa', depth=1, shots=1024)
+vqe_solver = factory.create_solver('vqe', ansatz_type='RealAmplitudes')
+```
+
+### Quantum Solver Features
+
+The package provides quantum computing approaches to portfolio optimization using Qiskit:
+
+- **Quantum Approximate Optimization Algorithm (QAOA)**:
+  - Designed for combinatorial optimization problems
+  - Configurable circuit depth for control over solution quality
+  - Automatic problem conversion to QUBO format
+  - Handles both small problems (full quantum) and large problems (hybrid approach)
+
+- **Variational Quantum Eigensolver (VQE)**:
+  - Finds the minimum eigenvalue of the problem Hamiltonian
+  - Multiple ansatz options: 'RealAmplitudes' (default) and 'TwoLocal'
+  - Configurable circuit depth and shots
+
+- **Hybrid Quantum-Classical Approach**:
+  - Automatically divides large problems into smaller subproblems
+  - Solves subproblems using quantum algorithms
+  - Combines solutions for the complete portfolio
+
+Example of using quantum solvers:
+
+```python
+# Create and configure a QAOA solver
+qaoa_solver = factory.create_solver(
+    'qaoa',
+    depth=2,                  # Number of QAOA layers
+    shots=1024,               # Number of measurement shots
+    backend_name='aer_simulator',  # Quantum backend
+    optimizer_name='COBYLA',  # Classical optimizer
+    max_iterations=100        # Maximum optimizer iterations
+)
+
+# Create a VQE solver with TwoLocal ansatz
+vqe_solver = factory.create_solver(
+    'vqe',
+    ansatz_type='TwoLocal',   # Type of ansatz
+    depth=2,                  # Circuit depth
+    shots=1024,               # Measurement shots
+    backend_name='aer_simulator'
+)
+
+# Solve a portfolio optimization problem
+result = qaoa_solver.solve(problem)
+print(f"Optimal weights: {result.weights}")
+print(f"Objective value: {result.objective}")
+```
+
+See the [quantum_optimization.py](./examples/quantum_optimization.py) example for a complete demonstration of quantum solvers.
+
+### Solver Types
+
+The package currently includes the following solver types:
+
+1. **Classical Solvers**
+   - `classical`: Sequential Least Squares Programming (SLSQP) solver
+
+2. **Approximate/Heuristic Solvers**
+   - `genetic`: Genetic Algorithm solver
+   - `annealing`: Simulated Annealing solver
+
+3. **Quantum Solvers**
+   - `qaoa`: Quantum Approximate Optimization Algorithm
+   - `vqe`: Variational Quantum Eigensolver
 
 ### Configuration
 The package uses configuration files to control optimization parameters and test settings. Three preset configurations are provided:
@@ -97,7 +193,7 @@ from portopt.utils.debug import OptimizationDebugger
 debugger = OptimizationDebugger(debug_dir="debug_output")
 
 # Solve with debugging enabled
-solver = ClassicalSolver()
+solver = factory.create_solver('classical')
 result = solver.solve(problem, debugger=debugger)
 
 # Generate debug report

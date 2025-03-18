@@ -16,11 +16,48 @@ The `PortfolioOptProblem` class serves as the central data structure for portfol
 ### Solvers
 The system implements multiple solver approaches:
 
+#### Base Solver Framework (`portopt/solvers/base.py`)
+- Abstract base class for all solver implementations
+- Common utility functions for constraint handling
+- Weight processing and validation
+- Performance metrics calculation
+
+#### Constraint Adapter (`portopt/solvers/constraint_adapter.py`)
+- Converts constraints between different solver formats
+- Supports SciPy format for classical solvers
+- Provides penalty functions for heuristic solvers
+- Comprehensive constraint validation
+
+#### Solver Factory (`portopt/solvers/factory.py`)
+- Centralized creation and configuration of solvers
+- Default configurations for different solver types
+- Extensible registration system for new solvers
+- Unified interface for solver creation
+
 #### Classical Solver (`portopt/solvers/classical.py`)
 - Sequential relaxation approach
 - Handles non-linear constraints
 - Supports warm starting
 - Built-in penalty adjustment mechanism
+
+#### Approximate Solvers (`portopt/solvers/approximate.py`)
+- Genetic Algorithm implementation
+  - Population-based evolutionary approach
+  - Effective for non-convex problems (e.g., cardinality constraints)
+  - Customizable genetic operators (selection, crossover, mutation)
+- Simulated Annealing implementation
+  - Temperature-based stochastic optimization
+  - Good at avoiding local optima
+  - Configurable cooling schedule
+
+#### Quantum Solvers (`portopt/solvers/quantum.py`)
+- Abstract base class for quantum implementations
+- QAOA (Quantum Approximate Optimization Algorithm) placeholder
+  - Parameterized quantum circuit approach
+  - Hybrid quantum-classical optimization
+- VQE (Variational Quantum Eigensolver) placeholder
+  - Hamiltonian-based quantum optimization
+  - Customizable variational forms (ansatz)
 
 #### Multithreaded Solver (`portopt/solvers/MultiThreadedSolver.py`)
 - Parallel optimization attempts

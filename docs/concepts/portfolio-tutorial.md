@@ -184,6 +184,76 @@ Sophisticated analysis of:
 - Conditional risks
 - Tail dependencies
 
+## Solver Approaches and Algorithms
+
+Portfolio optimization problems can be solved using various algorithms, each with different strengths and trade-offs. Our test harness supports multiple solver types:
+
+### 1. Classical Optimization
+
+**Strengths:**
+- Proven mathematical foundations
+- Guaranteed optimality for convex problems
+- Well-understood convergence properties
+
+**Algorithms:**
+- Sequential Least Squares Programming (SLSQP)
+- Interior Point Methods
+- Sequential Quadratic Programming (SQP)
+
+**Best for:**
+- Standard mean-variance optimization
+- Problems with well-behaved constraints
+- When exact solutions are required
+
+### 2. Approximate/Heuristic Methods
+
+**Strengths:**
+- Can handle non-convex problems
+- Often faster for large-scale problems
+- More robust to local minima
+
+**Algorithms:**
+- Genetic Algorithms
+- Simulated Annealing
+- Particle Swarm Optimization
+- Frank-Wolfe Algorithm
+
+**Best for:**
+- Complex constraint structures
+- When computational speed is critical
+- Problems with many local optima
+
+### 3. Quantum Optimization
+
+**Strengths:**
+- Potential for quantum advantage on specific problems
+- Natural handling of combinatorial constraints
+- Exploration of multiple solutions simultaneously
+
+**Algorithms:**
+- Quantum Approximate Optimization Algorithm (QAOA)
+- Variational Quantum Eigensolver (VQE)
+- Quantum Annealing
+
+**Best for:**
+- Discrete optimization problems
+- Cardinality-constrained portfolios
+- Research and exploration of quantum methods
+
+### Choosing the Right Solver
+
+The optimal solver depends on your specific requirements:
+
+| Consideration | Recommended Solver Type |
+|---------------|-------------------------|
+| Standard portfolio with continuous weights | Classical |
+| Large universe with many constraints | Heuristic |
+| Strict cardinality constraints | Genetic or Quantum |
+| Need for exact solutions | Classical |
+| Exploratory research | Multiple solvers for comparison |
+
+Our `SolverFactory` provides a unified interface to create and configure different solver types, making it easy to experiment with various approaches.
+
 ## Practical Tips for Users
 
 1. **Start Simple**
