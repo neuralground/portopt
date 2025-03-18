@@ -6,6 +6,7 @@ from portopt.solvers.base import BaseSolver
 from portopt.solvers.classical import ClassicalSolver
 from portopt.solvers.approximate import GeneticSolver, SimulatedAnnealingSolver
 from portopt.solvers.quantum import QAOASolver, VQESolver
+from portopt.solvers.advanced_genetic import AdvancedGeneticSolver
 
 
 class SolverFactory:
@@ -34,6 +35,30 @@ class SolverFactory:
             'generations': 50,
             'mutation_rate': 0.1,
             'crossover_rate': 0.8
+        })
+        
+        self.register_solver('advanced_genetic', AdvancedGeneticSolver, {
+            'population_size': 200,
+            'generations': 100,
+            'mutation_rate': 0.1,
+            'crossover_rate': 0.8,
+            'num_islands': 3,
+            'adaptive_rates': True,
+            'diversity_preservation': True
+        })
+        
+        # Register advanced genetic variants
+        self.register_solver('advanced_genetic_multi', AdvancedGeneticSolver, {
+            'population_size': 200,
+            'generations': 100,
+            'mutation_rate': 0.1,
+            'crossover_rate': 0.8,
+            'num_islands': 3,
+            'adaptive_rates': True,
+            'diversity_preservation': True,
+            'multi_objective': True,
+            'risk_weight': 0.5,
+            'return_weight': 0.5
         })
         
         self.register_solver('annealing', SimulatedAnnealingSolver, {

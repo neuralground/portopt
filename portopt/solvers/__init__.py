@@ -7,6 +7,7 @@ This package provides a collection of solvers for portfolio optimization problem
 
 2. Approximate/heuristic solvers: Metaheuristic approaches
    - Genetic Algorithm
+   - Advanced Genetic Algorithm (with island model and multi-objective capabilities)
    - Simulated Annealing
    - Particle Swarm Optimization
    - Frank-Wolfe Algorithm
@@ -25,6 +26,7 @@ from .constraint_adapter import ConstraintAdapter
 from .factory import SolverFactory
 from .approximate import GeneticSolver, SimulatedAnnealingSolver
 from .quantum import QAOASolver, VQESolver
+from .advanced_genetic import AdvancedGeneticSolver
 
 __all__ = [
     'BaseSolver',
@@ -34,5 +36,6 @@ __all__ = [
     'GeneticSolver',
     'SimulatedAnnealingSolver',
     'QAOASolver',
-    'VQESolver'
+    'VQESolver',
+    'AdvancedGeneticSolver'
 ]
