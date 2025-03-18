@@ -9,6 +9,24 @@ This package provides a testbed for experimenting with different portfolio optim
 - Constraint handling
 - Performance benchmarking
 
+## Documentation
+
+Comprehensive documentation is available in the [docs](./docs) directory:
+
+- [Documentation Index](./docs/index.md) - Complete overview of all documentation resources
+- [Getting Started](./docs/getting-started/quick-start.md) - Quick introduction to using the testbed
+- [Concepts](./docs/concepts/portfolio-tutorial.md) - Learn about portfolio optimization concepts
+- [Workflow Guide](./docs/user-guides/workflow-guide.md) - Step-by-step workflow for portfolio optimization
+- [Examples](./docs/examples/) - Practical examples of using the testbed
+- [API Reference](./docs/reference/) - Detailed API documentation
+- [Developer Guides](./docs/developer-guides/) - Resources for developers
+
+### Interactive Examples
+
+The repository includes interactive Jupyter notebooks for hands-on learning:
+
+- [Minimum Variance Portfolio](./docs/examples/notebooks/minimum_variance_portfolio.ipynb) - Interactive example of minimum variance portfolio optimization
+
 ## Installation
 
 ### Development Installation
@@ -92,7 +110,31 @@ The debug report includes:
 - Iteration-by-iteration metrics
 - Performance statistics
 
+## Examples
+
+For more detailed examples, see the [examples directory](./docs/examples):
+
+- [Minimum Variance Portfolio](./docs/examples/minimum-variance-portfolio.md) - How to construct a minimum variance portfolio
+- [Maximum Sharpe Ratio Portfolio](./docs/examples/maximum-sharpe-ratio-portfolio.md) - How to construct a maximum Sharpe ratio portfolio
+- [Risk Parity Portfolio](./docs/examples/risk-parity-portfolio.md) - How to construct a risk parity portfolio
+
+### Interactive Notebooks
+
+For interactive learning, explore our Jupyter notebooks:
+
+- [Minimum Variance Portfolio Notebook](./docs/examples/notebooks/minimum_variance_portfolio.ipynb) - Interactive example with visualizations and detailed explanations
+
 ## Development
+
+### Developer Documentation
+
+Resources for developers who want to contribute to or extend the testbed:
+
+- [Architecture Overview](./docs/developer-guides/architecture.md) - Overview of the system architecture
+- [Architecture Diagrams](./docs/developer-guides/architecture-diagram.md) - Visual representations of the system architecture
+- [Code Documentation Standards](./docs/developer-guides/code-documentation-standards.md) - Standards for documenting code
+- [Documentation Testing Guide](./docs/developer-guides/documentation-testing.md) - Guide for testing documentation
+- [Contributing Guide](./docs/developer-guides/contributing.md) - How to contribute to the project
 
 ### Running Tests
 ```bash
@@ -135,6 +177,7 @@ Contributions are welcome! Please ensure:
 3. Documentation is updated as needed
 4. Type hints are used consistently
 
+For more details, see the [Contributing Guide](./docs/developer-guides/contributing.md).
+
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
-

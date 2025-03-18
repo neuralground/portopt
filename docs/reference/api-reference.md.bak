@@ -1,0 +1,588 @@
+# API Reference
+
+This document provides detailed information about the Portfolio Optimization Testbed API.
+
+## Core Components
+
+### PortfolioOptProblem
+
+The central data structure for portfolio optimization problems.
+
+```python
+from portopt.core.problem import PortfolioOptProblem
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    returns: np.ndarray,
+    volumes: Optional[np.ndarray] = None,
+    spreads: Optional[np.ndarray] = None,
+    factor_returns: Optional[np.ndarray] = None,
+    factor_exposures: Optional[np.ndarray] = None,
+    industry_classes: Optional[np.ndarray] = None,
+    asset_classes: Optional[np.ndarray] = None,
+    currencies: Optional[np.ndarray] = None,
+    credit_ratings: Optional[np.ndarray] = None,
+    validate: bool = True
+) -> None
+```
+
+**Parameters:**
+- `returns`: Historical returns matrix of shape (n_periods, n_assets)
+- `volumes`: Trading volumes of shape (n_periods, n_assets)
+- `spreads`: Bid-ask spreads of shape (n_periods, n_assets)
+- `factor_returns`: Factor returns of shape (n_periods, n_factors)
+- `factor_exposures`: Factor exposures of shape (n_assets, n_factors)
+- `industry_classes`: Industry classifications of shape (n_assets,)
+- `asset_classes`: Asset class classifications of shape (n_assets,)
+- `currencies`: Currency classifications of shape (n_assets,)
+- `credit_ratings`: Credit rating classifications of shape (n_assets,)
+- `validate`: Whether to validate the problem instance
+
+#### Methods
+
+##### `validate()`
+
+Validates the problem instance for consistency.
+
+```python
+def validate(self) -> bool
+```
+
+**Returns:**
+- `bool`: True if the problem is valid, raises ValueError otherwise
+
+##### `get_covariance_matrix()`
+
+Computes the covariance matrix from historical returns.
+
+```python
+def get_covariance_matrix(
+    self,
+    method: str = "empirical",
+    shrinkage: float = 0.0
+) -> np.ndarray
+```
+
+**Parameters:**
+- `method`: Covariance estimation method ("empirical", "factor", "shrinkage")
+- `shrinkage`: Shrinkage parameter for shrinkage estimation
+
+**Returns:**
+- `np.ndarray`: Covariance matrix of shape (n_assets, n_assets)
+
+##### `get_expected_returns()`
+
+Computes expected returns from historical data.
+
+```python
+def get_expected_returns(
+    self,
+    method: str = "historical",
+    risk_aversion: float = 1.0
+) -> np.ndarray
+```
+
+**Parameters:**
+- `method`: Return estimation method ("historical", "risk_adjusted", "factor")
+- `risk_aversion`: Risk aversion parameter for risk-adjusted returns
+
+**Returns:**
+- `np.ndarray`: Expected returns of shape (n_assets,)
+
+**Example:**
+```python
+# Create a problem instance
+problem = PortfolioOptProblem(returns=historical_returns)
+
+# Get the covariance matrix
+cov_matrix = problem.get_covariance_matrix(method="shrinkage", shrinkage=0.2)
+
+# Get expected returns
+exp_returns = problem.get_expected_returns(method="risk_adjusted")
+```
+
+### TestDataGenerator
+
+Generates realistic test data for portfolio optimization problems.
+
+```python
+from portopt import TestDataGenerator
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    seed: Optional[int] = None,
+    correlation_structure: str = "realistic",
+    volatility_range: Tuple[float, float] = (0.1, 0.4),
+    return_range: Tuple[float, float] = (-0.1, 0.2)
+) -> None
+```
+
+**Parameters:**
+- `seed`: Random seed for reproducibility
+- `correlation_structure`: Type of correlation structure ("realistic", "random", "block")
+- `volatility_range`: Range of asset volatilities
+- `return_range`: Range of expected returns
+
+#### Methods
+
+##### `generate_realistic_problem()`
+
+Generates a realistic portfolio optimization problem.
+
+```python
+def generate_realistic_problem(
+    self,
+    n_assets: int = 100,
+    n_periods: int = 252,
+    n_factors: int = 5,
+    n_industries: int = 10,
+    include_volumes: bool = True,
+    include_spreads: bool = True
+) -> PortfolioOptProblem
+```
+
+**Parameters:**
+- `n_assets`: Number of assets
+- `n_periods`: Number of time periods
+- `n_factors`: Number of risk factors
+- `n_industries`: Number of industry sectors
+- `include_volumes`: Whether to include trading volumes
+- `include_spreads`: Whether to include bid-ask spreads
+
+**Returns:**
+- `PortfolioOptProblem`: Generated problem instance
+
+**Example:**
+```python
+# Create a data generator
+generator = TestDataGenerator(seed=42)
+
+# Generate a realistic problem
+problem = generator.generate_realistic_problem(
+    n_assets=50,
+    n_periods=252,
+    n_factors=5
+)
+```
+
+## Solvers
+
+### BaseSolver
+
+Abstract base class for portfolio optimization solvers.
+
+```python
+from portopt.solvers.base import BaseSolver
+```
+
+#### Methods
+
+##### `solve()`
+
+Solves the portfolio optimization problem.
+
+```python
+@abstractmethod
+def solve(
+    self,
+    problem: PortfolioOptProblem,
+    initial_weights: Optional[np.ndarray] = None,
+    constraints: Optional[List[Constraint]] = None,
+    objective: Optional[Objective] = None,
+    debugger: Optional[OptimizationDebugger] = None
+) -> OptimizationResult
+```
+
+**Parameters:**
+- `problem`: Portfolio optimization problem
+- `initial_weights`: Initial portfolio weights
+- `constraints`: List of constraints
+- `objective`: Optimization objective
+- `debugger`: Debugger for tracking optimization progress
+
+**Returns:**
+- `OptimizationResult`: Optimization result
+
+### ClassicalSolver
+
+Sequential relaxation solver for portfolio optimization.
+
+```python
+from portopt.solvers.classical import ClassicalSolver
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    max_iterations: int = 100,
+    tolerance: float = 1e-6,
+    initial_penalty: float = 10.0,
+    penalty_growth_factor: float = 2.0,
+    use_warm_start: bool = True,
+    solver_backend: str = "osqp"
+) -> None
+```
+
+**Parameters:**
+- `max_iterations`: Maximum number of iterations
+- `tolerance`: Convergence tolerance
+- `initial_penalty`: Initial penalty parameter
+- `penalty_growth_factor`: Penalty growth factor
+- `use_warm_start`: Whether to use warm starting
+- `solver_backend`: Backend solver ("osqp", "cvxopt", "scipy")
+
+#### Methods
+
+##### `solve()`
+
+Solves the portfolio optimization problem.
+
+```python
+def solve(
+    self,
+    problem: PortfolioOptProblem,
+    initial_weights: Optional[np.ndarray] = None,
+    constraints: Optional[List[Constraint]] = None,
+    objective: Optional[Objective] = None,
+    debugger: Optional[OptimizationDebugger] = None
+) -> OptimizationResult
+```
+
+**Parameters:**
+- `problem`: Portfolio optimization problem
+- `initial_weights`: Initial portfolio weights
+- `constraints`: List of constraints
+- `objective`: Optimization objective
+- `debugger`: Debugger for tracking optimization progress
+
+**Returns:**
+- `OptimizationResult`: Optimization result
+
+**Example:**
+```python
+# Create a solver
+solver = ClassicalSolver(
+    max_iterations=50,
+    initial_penalty=100.0,
+    solver_backend="osqp"
+)
+
+# Solve the problem
+result = solver.solve(
+    problem=problem,
+    initial_weights=initial_portfolio,
+    constraints=[
+        FullInvestmentConstraint(),
+        PositionLimitConstraint(lower=0.0, upper=0.05)
+    ],
+    objective=MinimumVarianceObjective()
+)
+
+# Access the results
+optimal_weights = result.weights
+objective_value = result.objective_value
+iterations = result.iterations
+```
+
+### MultiThreadedSolver
+
+Parallel optimization solver for portfolio optimization.
+
+```python
+from portopt.solvers.multithreaded import MultiThreadedSolver
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    n_threads: int = 4,
+    n_attempts: int = 10,
+    max_iterations_per_attempt: int = 50,
+    tolerance: float = 1e-6,
+    initial_penalty_range: Tuple[float, float] = (1.0, 1000.0),
+    solver_backend: str = "osqp"
+) -> None
+```
+
+**Parameters:**
+- `n_threads`: Number of parallel threads
+- `n_attempts`: Number of optimization attempts
+- `max_iterations_per_attempt`: Maximum iterations per attempt
+- `tolerance`: Convergence tolerance
+- `initial_penalty_range`: Range of initial penalty parameters
+- `solver_backend`: Backend solver ("osqp", "cvxopt", "scipy")
+
+## Constraints
+
+### Constraint
+
+Abstract base class for portfolio constraints.
+
+```python
+from portopt.constraints.base import Constraint
+```
+
+### FullInvestmentConstraint
+
+Constraint ensuring the portfolio weights sum to 1.
+
+```python
+from portopt.constraints.basic import FullInvestmentConstraint
+
+# Create the constraint
+constraint = FullInvestmentConstraint()
+```
+
+### PositionLimitConstraint
+
+Constraint on individual position sizes.
+
+```python
+from portopt.constraints.basic import PositionLimitConstraint
+
+# Create the constraint
+constraint = PositionLimitConstraint(lower=0.0, upper=0.05)
+```
+
+### SectorConstraint
+
+Constraint on sector exposures.
+
+```python
+from portopt.constraints.sector import SectorConstraint
+
+# Create the constraint
+constraint = SectorConstraint(
+    sector_ids=industry_classes,
+    lower_bounds=np.full(n_industries, 0.05),
+    upper_bounds=np.full(n_industries, 0.25)
+)
+```
+
+### FactorExposureConstraint
+
+Constraint on factor exposures.
+
+```python
+from portopt.constraints.factor import FactorExposureConstraint
+
+# Create the constraint
+constraint = FactorExposureConstraint(
+    factor_exposures=factor_exposures,
+    lower_bounds=np.array([-0.2, -0.2, -0.2, -0.2, -0.2]),
+    upper_bounds=np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+)
+```
+
+## Objectives
+
+### Objective
+
+Abstract base class for portfolio objectives.
+
+```python
+from portopt.core.objective import Objective
+```
+
+### MinimumVarianceObjective
+
+Objective to minimize portfolio variance.
+
+```python
+from portopt.core.objective import MinimumVarianceObjective
+
+# Create the objective
+objective = MinimumVarianceObjective()
+```
+
+### MaximumSharpeObjective
+
+Objective to maximize the Sharpe ratio.
+
+```python
+from portopt.core.objective import MaximumSharpeObjective
+
+# Create the objective
+objective = MaximumSharpeObjective(risk_free_rate=0.02)
+```
+
+### MeanVarianceObjective
+
+Objective to balance return and risk.
+
+```python
+from portopt.core.objective import MeanVarianceObjective
+
+# Create the objective
+objective = MeanVarianceObjective(risk_aversion=2.0)
+```
+
+## Benchmarking
+
+### BenchmarkRunner
+
+Runs benchmarks for portfolio optimization algorithms.
+
+```python
+from portopt.benchmark.runner import BenchmarkRunner
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    output_dir: str = "benchmark_results",
+    config_file: Optional[str] = None
+) -> None
+```
+
+**Parameters:**
+- `output_dir`: Directory for benchmark results
+- `config_file`: Configuration file path
+
+#### Methods
+
+##### `run_size_scaling_benchmark()`
+
+Runs a benchmark to evaluate scaling with problem size.
+
+```python
+def run_size_scaling_benchmark(
+    self,
+    solver_classes: List[Type[BaseSolver]],
+    n_assets_range: List[int],
+    n_periods_range: List[int],
+    n_runs: int = 3
+) -> BenchmarkResults
+```
+
+**Parameters:**
+- `solver_classes`: List of solver classes to benchmark
+- `n_assets_range`: Range of asset counts
+- `n_periods_range`: Range of time periods
+- `n_runs`: Number of runs per configuration
+
+**Returns:**
+- `BenchmarkResults`: Benchmark results
+
+**Example:**
+```python
+# Create a benchmark runner
+runner = BenchmarkRunner(output_dir="my_benchmark_results")
+
+# Run a size scaling benchmark
+results = runner.run_size_scaling_benchmark(
+    solver_classes=[ClassicalSolver, MultiThreadedSolver],
+    n_assets_range=[50, 100, 200, 500],
+    n_periods_range=[252, 504],
+    n_runs=5
+)
+
+# Generate a report
+results.generate_report("scaling_benchmark_report.html")
+```
+
+## Utilities
+
+### OptimizationDebugger
+
+Debugger for tracking optimization progress.
+
+```python
+from portopt.utils.debug import OptimizationDebugger
+```
+
+#### Constructor
+
+```python
+def __init__(
+    self,
+    debug_dir: str = "debug_output",
+    save_iterations: bool = True,
+    track_constraints: bool = True,
+    track_gradients: bool = False
+) -> None
+```
+
+**Parameters:**
+- `debug_dir`: Directory for debug output
+- `save_iterations`: Whether to save iteration data
+- `track_constraints`: Whether to track constraint violations
+- `track_gradients`: Whether to track gradients
+
+#### Methods
+
+##### `save_report()`
+
+Generates a debug report.
+
+```python
+def save_report(
+    self,
+    filename: str = "debug_report.html"
+) -> None
+```
+
+**Parameters:**
+- `filename`: Output filename
+
+**Example:**
+```python
+# Create a debugger
+debugger = OptimizationDebugger(
+    debug_dir="my_debug_output",
+    save_iterations=True,
+    track_constraints=True
+)
+
+# Solve with debugging enabled
+solver = ClassicalSolver()
+result = solver.solve(problem, debugger=debugger)
+
+# Generate debug report
+debugger.save_report("my_debug_report.html")
+```
+
+### setup_logging
+
+Sets up logging for the package.
+
+```python
+from portopt.utils.logging import setup_logging
+
+# Set up logging
+setup_logging(level="INFO", log_file="optimization.log")
+```
+
+## Visualization
+
+### create_dashboard
+
+Creates an interactive dashboard for visualization.
+
+```python
+from portopt.visualization.dashboard import create_dashboard
+
+# Create a dashboard
+dashboard = create_dashboard(
+    optimization_result=result,
+    problem=problem,
+    port=8050
+)
+
+# Run the dashboard
+dashboard.run_server(debug=True)
+```
