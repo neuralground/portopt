@@ -17,6 +17,7 @@ These documents explain the theoretical foundations and key concepts:
 - [Portfolio Tutorial](concepts/portfolio-tutorial.md) - Introduction to portfolio optimization concepts
 - [Risk Metrics](concepts/risk-metrics.md) - Explanation of risk measures used in portfolio optimization
 - [Optimization Challenges](concepts/optimization-challenges.md) - Deep dive into computational challenges in portfolio optimization
+- [Black-Litterman Tutorial](concepts/black-litterman-tutorial.md) - Comprehensive guide to the Black-Litterman model
 
 ## User Guides
 
@@ -77,7 +78,8 @@ docs/
 ├── concepts/                                # Conceptual documentation
 │   ├── portfolio-tutorial.md                # Portfolio optimization tutorial
 │   ├── risk-metrics.md                      # Risk metrics explanation
-│   └── optimization-challenges.md           # Optimization challenges
+│   ├── optimization-challenges.md           # Optimization challenges
+│   └── black-litterman-tutorial.md          # Black-Litterman tutorial
 ├── user-guides/                             # User guides
 │   ├── workflow-guide.md                    # Workflow guide
 │   └── dashboard-guide.md                   # Dashboard guide

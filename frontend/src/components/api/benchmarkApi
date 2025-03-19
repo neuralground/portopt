@@ -8,6 +8,7 @@ export interface BenchmarkConfig {
     nTrials: number;
   };
   solverParams: {
+    solverType: string;
     maxIterations: number;
     initialPenalty: number;
     penaltyMultiplier: number;

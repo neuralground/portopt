@@ -42,6 +42,7 @@ const BenchmarkConfiguration = () => {
       nTrials: 3
     },
     solverParams: {
+      solverType: 'classical',
       maxIterations: 20,
       initialPenalty: 100,
       penaltyMultiplier: 2
@@ -247,6 +248,30 @@ const BenchmarkConfiguration = () => {
 
               <TabsContent value="solver" className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Solver Type</label>
+                    <select
+                      className="w-full p-2 border rounded-md"
+                      value={selectedConfig.solverParams.solverType}
+                      onChange={e => setSelectedConfig({
+                        ...selectedConfig,
+                        solverParams: {
+                          ...selectedConfig.solverParams,
+                          solverType: e.target.value
+                        }
+                      })}
+                    >
+                      <option value="classical">Classical (SLSQP)</option>
+                      <option value="genetic">Genetic Algorithm</option>
+                      <option value="advanced_genetic">Advanced Genetic</option>
+                      <option value="annealing">Simulated Annealing</option>
+                      <option value="black_litterman">Black-Litterman</option>
+                      <option value="black_litterman_conservative">Black-Litterman (Conservative)</option>
+                      <option value="factor">Factor Model</option>
+                      <option value="factor_conservative">Factor Model (Conservative)</option>
+                      <option value="factor_aggressive">Factor Model (Aggressive)</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="text-sm font-medium">Max Iterations</label>
                     <Input

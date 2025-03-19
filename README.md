@@ -169,6 +169,12 @@ The package currently includes the following solver types:
    - `qaoa`: Quantum Approximate Optimization Algorithm
    - `vqe`: Variational Quantum Eigensolver
 
+4. **Statistical Models**
+   - `black_litterman`: Black-Litterman model for blending market equilibrium with investor views
+   - `black_litterman_conservative`: Black-Litterman model with higher risk aversion
+
+See the [black_litterman_example.py](./examples/black_litterman_example.py) example for a demonstration of the Black-Litterman model.
+
 ### Configuration
 The package uses configuration files to control optimization parameters and test settings. Three preset configurations are provided:
 

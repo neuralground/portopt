@@ -16,6 +16,9 @@ This package provides a collection of solvers for portfolio optimization problem
    - QAOA (Quantum Approximate Optimization Algorithm)
    - VQE (Variational Quantum Eigensolver)
 
+4. Statistical models:
+   - Black-Litterman Model
+
 The package also includes utilities for constraint handling, solver factory,
 and common interfaces for all solver types.
 """
@@ -27,6 +30,7 @@ from .factory import SolverFactory
 from .approximate import GeneticSolver, SimulatedAnnealingSolver
 from .quantum import QAOASolver, VQESolver
 from .advanced_genetic import AdvancedGeneticSolver
+from .black_litterman import BlackLittermanSolver
 
 __all__ = [
     'BaseSolver',
@@ -37,5 +41,6 @@ __all__ = [
     'SimulatedAnnealingSolver',
     'QAOASolver',
     'VQESolver',
-    'AdvancedGeneticSolver'
+    'AdvancedGeneticSolver',
+    'BlackLittermanSolver'
 ]

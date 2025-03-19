@@ -7,6 +7,8 @@ from portopt.solvers.classical import ClassicalSolver
 from portopt.solvers.approximate import GeneticSolver, SimulatedAnnealingSolver
 from portopt.solvers.quantum import QAOASolver, VQESolver
 from portopt.solvers.advanced_genetic import AdvancedGeneticSolver
+from portopt.solvers.black_litterman import BlackLittermanSolver
+from portopt.solvers.factor import FactorSolver
 
 
 class SolverFactory:
@@ -66,6 +68,46 @@ class SolverFactory:
             'cooling_rate': 0.95,
             'iterations': 1000,
             'perturbation_size': 0.1
+        })
+        
+        # Register Black-Litterman solver
+        self.register_solver('black_litterman', BlackLittermanSolver, {
+            'risk_aversion': 2.5,
+            'tau': 0.05,
+            'use_market_caps': True,
+            'default_view_confidence': 0.5
+        })
+        
+        # Register Black-Litterman variant with higher risk aversion
+        self.register_solver('black_litterman_conservative', BlackLittermanSolver, {
+            'risk_aversion': 5.0,
+            'tau': 0.05,
+            'use_market_caps': True,
+            'default_view_confidence': 0.5
+        })
+        
+        # Register factor-based solvers
+        self.register_solver('factor', FactorSolver, {
+            'risk_aversion': 2.0,
+            'specific_risk_penalty': 0.1,
+            'alpha': 0.5,
+            'regularization_lambda': 1e-4
+        })
+        
+        # Register factor-based solver variant with higher risk aversion
+        self.register_solver('factor_conservative', FactorSolver, {
+            'risk_aversion': 4.0,
+            'specific_risk_penalty': 0.2,
+            'alpha': 0.7,  # More weight on factor model vs historical data
+            'regularization_lambda': 1e-4
+        })
+        
+        # Register factor-based solver variant with lower risk aversion
+        self.register_solver('factor_aggressive', FactorSolver, {
+            'risk_aversion': 1.0,
+            'specific_risk_penalty': 0.05,
+            'alpha': 0.3,  # More weight on historical data vs factor model
+            'regularization_lambda': 1e-4
         })
         
         # Register quantum solvers
